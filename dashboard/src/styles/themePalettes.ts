@@ -1,6 +1,7 @@
 /** Brand palettes — orthogonal to light/dark mode (`data-theme`). */
 
 export type ThemePalette =
+  | "flowbee"
   | "rose"
   | "tech"
   | "indigo"
@@ -12,6 +13,7 @@ export type ThemePalette =
   | "custom";
 
 export const VALID_PALETTES: ThemePalette[] = [
+  "flowbee",
   "rose",
   "tech",
   "indigo",
@@ -25,7 +27,7 @@ export const VALID_PALETTES: ThemePalette[] = [
 /** Curated palettes only — "custom" is handled separately via a hex value. */
 export const CURATED_PALETTES: ThemePalette[] = [...VALID_PALETTES];
 
-export const DEFAULT_PALETTE: ThemePalette = "rose";
+export const DEFAULT_PALETTE: ThemePalette = "flowbee";
 export const DEFAULT_CUSTOM_COLOR = "#4B74FA";
 
 /** True when the value is one of the curated palette keys (not "custom"/hex). */
@@ -44,6 +46,7 @@ export const PALETTE_STORAGE_KEY = LEGACY_PALETTE_STORAGE_KEY;
 
 /** Swatch color shown in the palette picker (light brand). */
 export const PALETTE_SWATCH: Record<ThemePalette, string> = {
+  flowbee: "#D97757",
   rose: "#E85D75",
   tech: "#4B74FA",
   indigo: "#6366F1",
@@ -74,6 +77,28 @@ export const ANTD_BRAND_TOKENS: Record<
   Exclude<ThemePalette, "custom">,
   { light: AntdBrandTokens; dark: AntdBrandTokens }
 > = {
+  flowbee: {
+    // FlowBee brand: clay #D97757 (ivory backgrounds live in theme-vars.css).
+    light: {
+      colorPrimary: "#D97757",
+      colorPrimaryHover: "#C6613F",
+      colorPrimaryActive: "#A94F31",
+      colorLink: "#C6613F",
+    },
+    dark: {
+      colorPrimary: "#D97757",
+      colorPrimaryBg: "rgba(217, 119, 87, 0.14)",
+      colorPrimaryBgHover: "rgba(217, 119, 87, 0.2)",
+      colorPrimaryBorder: "rgba(217, 119, 87, 0.3)",
+      colorPrimaryBorderHover: "rgba(217, 119, 87, 0.4)",
+      colorPrimaryHover: "#E5946F",
+      colorPrimaryActive: "#D97757",
+      colorPrimaryText: "#E8A283",
+      colorPrimaryTextHover: "#F0B79C",
+      colorPrimaryTextActive: "#E5946F",
+      colorLink: "#E8A283",
+    },
+  },
   rose: {
     light: {
       colorPrimary: "#E85D75",

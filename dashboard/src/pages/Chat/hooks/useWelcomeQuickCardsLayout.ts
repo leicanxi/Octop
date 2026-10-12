@@ -4,7 +4,8 @@ import type { WelcomeQuickCard } from "../components/WelcomeScreen";
 
 const MAX_DEFAULT_ROWS = 2;
 const MOBILE_MIN_VISIBLE = 2;
-const MASCOT_ASPECT = 711 / 812;
+/** FlowBee mascot is square (512x512). */
+const MASCOT_ASPECT = 1;
 const HEADING_HEIGHT_NO_MASCOT = 72;
 
 function estimateMascotHeight(): number {

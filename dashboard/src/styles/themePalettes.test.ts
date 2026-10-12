@@ -25,6 +25,7 @@ function contrastRatio(foreground: string, background: string): number {
 describe("theme palettes", () => {
   it("exposes the curated palette set", () => {
     expect(VALID_PALETTES).toEqual([
+      "flowbee",
       "rose",
       "tech",
       "indigo",
@@ -36,6 +37,14 @@ describe("theme palettes", () => {
     ]);
   });
 
+  it("keeps the FlowBee default brand tokens", () => {
+    expect(ANTD_BRAND_TOKENS.flowbee.light.colorPrimary).toBe("#D97757");
+    expect(ANTD_BRAND_TOKENS.flowbee.light.colorPrimaryHover).toBe("#C6613F");
+    expect(ANTD_BRAND_TOKENS.flowbee.light.colorPrimaryActive).toBe("#A94F31");
+    expect(ANTD_BRAND_TOKENS.flowbee.dark.colorPrimary).toBe("#D97757");
+    expect(ANTD_BRAND_TOKENS.flowbee.dark.colorLink).toBe("#E8A283");
+  });
+
   it("keeps the historic Elegant Rose default brand tokens", () => {
     expect(ANTD_BRAND_TOKENS.rose.light.colorPrimary).toBe("#E85D75");
     expect(ANTD_BRAND_TOKENS.rose.light.colorPrimaryHover).toBe("#D14A62");
@@ -44,7 +53,9 @@ describe("theme palettes", () => {
     expect(ANTD_BRAND_TOKENS.rose.dark.colorLink).toBe("#F08B9A");
   });
 
-  it.each(VALID_PALETTES.filter((palette) => palette !== "rose"))(
+  // FlowBee clay and Elegant Rose are brand colors used as-is behind white
+  // text (≈3:1); every other curated palette must stay WCAG AA.
+  it.each(VALID_PALETTES.filter((p) => p !== "rose" && p !== "flowbee"))(
     "keeps %s solid Ant Design states readable with white text",
     (palette) => {
       for (const mode of ["light", "dark"] as const) {

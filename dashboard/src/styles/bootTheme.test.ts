@@ -50,11 +50,9 @@ describe("index.html boot theme", () => {
     );
   });
 
-  it("uses the white vertical mark in dark mode", () => {
-    expect(INDEX_HTML).toContain('src="/logo_vertical_white.svg"');
-    expect(INDEX_HTML).toContain(
-      'html[data-theme="dark"] .octop-boot-logo--dark',
-    );
+  it("shows the FlowBee mark in both modes", () => {
+    expect(INDEX_HTML).toContain('src="/flowbee-mark.png"');
+    expect(INDEX_HTML).not.toContain("octop-boot-logo--dark");
   });
 
   it("keeps a stored light preference over OS dark", () => {

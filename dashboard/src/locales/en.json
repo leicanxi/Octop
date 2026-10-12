@@ -1,6 +1,6 @@
 {
   "app": {
-    "pageTitle": "Octop - An intelligent partner that understands you, helps you, and grows with you"
+    "pageTitle": "FlowBee - An intelligent partner that understands you, helps you, and grows with you"
   },
   "layout": {
     "collapsePanel": "Collapse panel",
@@ -3656,7 +3656,6 @@
     "greeting": "Hi! Your personal AI sidekick is here",
     "teamHeading": "#{{name}}",
     "teamNameFallback": "Team",
-    "mascotSwitchHint": "Tap to switch the mascot",
     "descriptionWithAgentSuffix": "— share what's on your mind, work or life",
     "descriptionWithTeamSuffix": "— an expert team that answers together",
     "description": "Work or life — just tell me what you need, I'll handle it",
@@ -3746,6 +3745,7 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "palette": {
+      "flowbee": "FlowBee",
       "rose": "Rose",
       "tech": "Tech",
       "indigo": "Indigo",
