@@ -71,6 +71,7 @@ on each start. Schema (`OctopConfig` in `octop/config.py`):
   "enable_dashboard": true,
   "enable_api_docs": false,
   "require_setup_password": true,
+  "require_user_model_credential": true,
   "max_upload_mb": 100,
   "database": {
     "driver": "sqlite",
@@ -153,6 +154,7 @@ Each variable, when set, takes precedence over the matching key in
 | `OCTOP_ENABLE_DASHBOARD` | bool | `true` | Serve the built React SPA at `/` |
 | `OCTOP_ENABLE_API_DOCS` | bool | `false` | Expose Scalar API docs at `/api/docs` |
 | `OCTOP_REQUIRE_SETUP_PASSWORD` | bool | `true` | Require wizard password during initial setup |
+| `OCTOP_REQUIRE_MODEL_CREDENTIAL` | bool | `true` | Non-admin users must store their own model API key before any model call is served; admins keep using the shared provider |
 | `OCTOP_MAX_UPLOAD_MB` | int | `100` | Max upload size in MiB for chat attachments, IM inbound, and knowledge documents (1–1024) |
 | `OCTOP_DATABASE_URL` | string | empty | Full DSN — overrides the `OCTOP_DATABASE_*` fields below |
 | `OCTOP_DATABASE_DRIVER` | `sqlite` \| `postgresql` | `sqlite` | Storage backend |

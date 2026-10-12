@@ -170,6 +170,18 @@ export interface OllamaDownloadTaskResponse {
   result: OllamaModelResponse | null;
 }
 
+/* ---- Per-user model credentials ---- */
+
+export interface MyModelCredential {
+  base_url: string | null;
+  has_api_key: boolean;
+}
+
+export interface MyModelCredentialRequest {
+  base_url?: string | null;
+  api_key?: string | null;
+}
+
 /* ---- Test search connectivity ---- */
 
 export interface TestSearchResponse {

@@ -90,3 +90,44 @@ async def test_admin_cannot_delete_local_runtime_provider(env):
     r = await c.get("/api/admin/providers", headers=auth)
     ids = [p["id"] for p in r.json()]
     assert pid in ids
+
+
+async def test_public_provider_list_never_exposes_api_key(env):
+    """GET /providers is open to any logged-in user but must not leak the key."""
+    c, _, admin_auth = env
+    await c.post(
+        "/api/admin/providers",
+        headers=admin_auth,
+        json={"name": "with-key", "kind": "openai", "api_key": "sk-shared-secret"},
+    )
+    await c.post(
+        "/api/users",
+        headers=admin_auth,
+        json={"username": "peeker", "password": "TestPass12", "role": "user"},
+    )
+    tok = (
+        await c.post("/api/auth/login", json={"username": "peeker", "password": "TestPass12"})
+    ).json()["access_token"]
+    user_auth = {"Authorization": f"Bearer {tok}"}
+
+    r = await c.get("/api/providers", headers=user_auth)
+
+    assert r.status_code == 200
+    assert "sk-shared-secret" not in r.text
+    target = next(p for p in r.json() if p["name"] == "with-key")
+    assert "api_key" not in target
+
+
+async def test_admin_provider_list_still_returns_api_key(env):
+    """The admin endpoint (the one the settings UI reads) keeps returning the key."""
+    c, _, auth = env
+    await c.post(
+        "/api/admin/providers",
+        headers=auth,
+        json={"name": "with-key", "kind": "openai", "api_key": "sk-admin-visible"},
+    )
+
+    r = await c.get("/api/admin/providers", headers=auth)
+
+    assert r.status_code == 200
+    assert any(p.get("api_key") == "sk-admin-visible" for p in r.json())

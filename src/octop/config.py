@@ -135,6 +135,10 @@ class OctopConfig:
     enable_api_docs: bool = False
     history_v2_enabled: bool = False
     require_setup_password: bool = True
+    # Bring-your-own-key policy: non-admin users must store their own model
+    # credentials before any model call is served (see the middleware of the
+    # same concern). Admins keep using the shared provider.
+    require_user_model_credential: bool = True
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     # False when config.json omits ``database`` (use PathLayout.db unless env overrides).
     database_in_file: bool = False
@@ -495,6 +499,12 @@ def load_config(path: Path) -> OctopConfig:
         merged["require_setup_password"] = _coerce_bool(
             "OCTOP_REQUIRE_SETUP_PASSWORD", v, bool(merged["require_setup_password"])
         )
+    if v := os.environ.get("OCTOP_REQUIRE_MODEL_CREDENTIAL"):
+        merged["require_user_model_credential"] = _coerce_bool(
+            "OCTOP_REQUIRE_MODEL_CREDENTIAL",
+            v,
+            bool(merged["require_user_model_credential"]),
+        )
     if v := os.environ.get("OCTOP_MAX_UPLOAD_MB"):
         merged["max_upload_mb"] = parse_max_upload_mb(
             v, default=int(merged.get("max_upload_mb", DEFAULT_MAX_UPLOAD_MB))
@@ -615,6 +625,7 @@ def load_config(path: Path) -> OctopConfig:
             False,
         ),
         require_setup_password=bool(merged["require_setup_password"]),
+        require_user_model_credential=bool(merged["require_user_model_credential"]),
         database=parse_database_config(merged_db),
         database_in_file=database_in_file,
         tls=_parse_tls_section(raw.get("tls")),

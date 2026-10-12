@@ -3211,6 +3211,9 @@ class AgentManager:
         from octop.infra.agents.middleware.reasoning import ReasoningRequestMiddleware
         from octop.infra.agents.middleware.thread_artifacts import ThreadArtifactsMiddleware
         from octop.infra.agents.middleware.token_quota import TokenQuotaMiddleware
+        from octop.infra.agents.middleware.user_model_credentials import (
+            UserModelCredentialMiddleware,
+        )
         from octop.infra.agents.middleware.workspace_image import (
             WorkspaceImageMaterializeMiddleware,
         )
@@ -3228,6 +3231,12 @@ class AgentManager:
             TokenQuotaMiddleware(
                 policy_repo=self._repos.user_policy_repo,
                 usage_repo=self._repos.usage_repo,
+            ),
+            UserModelCredentialMiddleware(
+                credential_repo=self._repos.user_model_credential_repo,
+                secret_repo=self._repos.secret_repo,
+                require_credential=self._config.require_user_model_credential,
+                user_repo=self._repos.user_repo,
             ),
             ReasoningRequestMiddleware(),
             KnowledgeSearchHintMiddleware(),

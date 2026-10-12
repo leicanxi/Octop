@@ -36,6 +36,10 @@ from octop.infra.agents.providers.probe import (
 from octop.infra.agents.providers.reasoning import reasoning_capability
 from octop.infra.agents.providers.resolved import list_resolved_models as _list_resolved_models
 from octop.infra.agents.providers.store import clear_stale_pins_for_provider
+from octop.infra.agents.providers.user_credentials import (
+    load_user_credentials,
+    store_user_credentials,
+)
 from octop.infra.errors import ErrorCode, OctopError
 from octop.infra.utils.locale import resolve_request_locale
 from octop.infra.utils.ulid import new_ulid
@@ -99,6 +103,11 @@ class ProviderFetchModelsBody(BaseModel):
     name: str | None = None
 
 
+class UserModelCredentialBody(BaseModel):
+    base_url: str | None = None
+    api_key: str | None = None
+
+
 def _is_codex_base_url(base_url: str | None) -> bool:
     return bool(base_url and "chatgpt.com/backend-api/codex" in base_url)
 
@@ -117,7 +126,13 @@ async def _maybe_refresh_codex_row(server: Any, row: Any) -> Any:
     return row
 
 
-def _row_to_dict(r: Any) -> dict[str, Any]:
+def _row_to_dict(r: Any, *, include_secrets: bool = True) -> dict[str, Any]:
+    """Serialize a provider row.
+
+    ``include_secrets=False`` drops the stored API key. The regular-user read
+    endpoint uses it so a logged-in user can list providers without being handed
+    the shared upstream credentials.
+    """
     models: list[dict[str, Any]] = []
     for stored in r.get_models():
         model = dict(stored)
@@ -126,16 +141,18 @@ def _row_to_dict(r: Any) -> dict[str, Any]:
             model["reasoning"] = True
             model["reasoning_config"] = capability
         models.append(model)
-    return {
+    data: dict[str, Any] = {
         "id": r.id,
         "name": r.name,
         "kind": r.kind,
         "base_url": r.base_url,
-        "api_key": r.api_key,
         "models": models,
         "note": r.note,
         "enabled": bool(r.enabled),
     }
+    if include_secrets:
+        data["api_key"] = r.api_key
+    return data
 
 
 @router.get("/presets")
@@ -191,8 +208,57 @@ async def list_providers(
     _: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> list[dict[str, Any]]:
-    """Return all providers. Read-only for regular users."""
-    return [_row_to_dict(r) for r in server.services.provider_repo.list_all()]
+    """Return all providers without their credentials. Read-only for regular users."""
+    return [
+        _row_to_dict(r, include_secrets=False) for r in server.services.provider_repo.list_all()
+    ]
+
+
+def _user_credential_view(server: Any, user_id: int) -> dict[str, Any]:
+    """Report whether the caller has their own credentials; never echo the key."""
+    credential = load_user_credentials(
+        server.services.user_model_credential_repo,
+        server.services.secret_repo,
+        user_id,
+    )
+    if credential is None:
+        return {"base_url": None, "has_api_key": False}
+    return {"base_url": credential.base_url, "has_api_key": bool(credential.api_key)}
+
+
+@router.get("/my-credential")
+async def get_my_credential(
+    user: Any = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    """Return the caller's own model credentials (the key itself is never echoed)."""
+    return _user_credential_view(server, int(user.id))
+
+
+@router.put("/my-credential")
+async def put_my_credential(
+    body: UserModelCredentialBody,
+    user: Any = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    """Store the caller's own model credentials; empty fields clear them."""
+    store_user_credentials(
+        server.services.user_model_credential_repo,
+        server.services.secret_repo,
+        user_id=int(user.id),
+        base_url=body.base_url,
+        api_key=body.api_key,
+    )
+    return _user_credential_view(server, int(user.id))
+
+
+@router.delete("/my-credential", status_code=204)
+async def delete_my_credential(
+    user: Any = Depends(current_user),
+    server: Any = Depends(get_server),
+) -> None:
+    """Drop the caller's own credentials, falling back to the shared providers."""
+    server.services.user_model_credential_repo.delete(int(user.id))
 
 
 # ── Admin endpoints ─────────────────────────────────────────────────────────

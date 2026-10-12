@@ -27,6 +27,10 @@ import {
   type UsageChunk,
 } from "../../../utils/parseHarnessChunk";
 import { isChatStreamError } from "../../../utils/chatStreamError";
+import {
+  MODEL_CREDENTIAL_REQUIRED_CODE,
+  openModelCredentialPanel,
+} from "../../../utils/modelCredential";
 import { parseToolExecutionFeedback } from "../../../utils/toolMediaBlocks";
 import { buildUserMessageContent } from "../utils/chatAttachments";
 import { sealPriorStreamingAssistants as sealPriorStreamingAssistantsMessages } from "./sealPriorStreamingAssistants";
@@ -1236,6 +1240,12 @@ function handleHarnessChunk(
       break;
     case "error":
       appendErrorBubble(state, chunk.message, chunk.error_code);
+      // Bring-your-own-key policy: after a refused send, land the user on the
+      // key form rather than leaving them to find it. Live stream only —
+      // replayed history carries the same code and must not re-open a modal.
+      if (chunk.error_code === MODEL_CREDENTIAL_REQUIRED_CODE) {
+        openModelCredentialPanel();
+      }
       break;
     case "hitl_required":
       handleHitlRequired(state, chunk.request);

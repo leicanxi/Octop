@@ -1,4 +1,10 @@
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import {
   Modal,
   Drawer,
@@ -10,6 +16,7 @@ import {
   Segmented,
   Tooltip,
   Popover,
+  Popconfirm,
 } from "antd";
 import { message } from "@/utils/antdMessage";
 
@@ -23,6 +30,7 @@ import {
   Github,
   RefreshCw,
   KeyRound,
+  KeySquare,
   Lock,
   LockOpen,
   SlidersHorizontal,
@@ -31,10 +39,13 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { authApi } from "../api/modules/auth";
 import { preferencesApi } from "../api/modules/preferences";
+import { providerApi } from "../api/modules/provider";
+import type { MyModelCredential } from "../api/types";
 import { clearAuthToken } from "../api/request";
 import { applyGuestLocale, applyUserLocale } from "../utils/locale";
 import { apiErrorMessage } from "../utils/apiError";
 import { isSsoPopupMessage, openSsoPopup } from "../utils/ssoPopup";
+import { OPEN_MODEL_CREDENTIAL_EVENT } from "../utils/modelCredential";
 import {
   MIN_PASSWORD_LENGTH,
   passwordPolicyIssue,
@@ -59,6 +70,9 @@ import styles from "./AvatarDropdown.module.less";
 const GITHUB_URL = "https://github.com/TencentCloud/Octop";
 const HELP_FEEDBACK_URL = "https://octop.cloud";
 const APP_OAUTH_KINDS = new Set(["feishu", "dingtalk", "wecom"]);
+
+// FlowBee's OpenAI-compatible endpoint — pre-filled so users only paste their key.
+const DEFAULT_CREDENTIAL_BASE_URL = "https://flowbee.top/v1";
 
 const PASSWORD_FIELD_ICON_PROPS = {
   size: 14 as const,
@@ -121,6 +135,15 @@ export default function AvatarDropdown({
     old_password: string;
     new_password: string;
     confirm: string;
+  }>();
+  const [credentialOpen, setCredentialOpen] = useState(false);
+  const [credential, setCredential] = useState<MyModelCredential | null>(null);
+  const [loadingCredential, setLoadingCredential] = useState(false);
+  const [savingCredential, setSavingCredential] = useState(false);
+  const [clearingCredential, setClearingCredential] = useState(false);
+  const [credentialForm] = Form.useForm<{
+    base_url: string;
+    api_key: string;
   }>();
 
   const handleLogout = useCallback(async () => {
@@ -285,6 +308,14 @@ export default function AvatarDropdown({
     deferOpen(() => setPasswordOpen(true));
   };
 
+  const openCredential = () => {
+    setMenuOpen(false);
+    onBeforeOpenSettings?.();
+    credentialForm.resetFields();
+    setCredential(null);
+    deferOpen(() => setCredentialOpen(true));
+  };
+
   const openCustomizeNav = () => {
     setMenuOpen(false);
     onBeforeOpenSettings?.();
@@ -293,6 +324,74 @@ export default function AvatarDropdown({
 
   const closeSettings = () => setSettingsOpen(false);
   const closePassword = () => setPasswordOpen(false);
+  const closeCredential = () => setCredentialOpen(false);
+
+  // A refused model call (MODEL_CREDENTIAL_REQUIRED) routes the user straight
+  // here. The ref keeps one subscription while always calling the latest
+  // closure — ``openCredential`` is redefined on every render.
+  const openCredentialRef = useRef(openCredential);
+  openCredentialRef.current = openCredential;
+
+  useEffect(() => {
+    const handler = () => openCredentialRef.current();
+    window.addEventListener(OPEN_MODEL_CREDENTIAL_EVENT, handler);
+    return () =>
+      window.removeEventListener(OPEN_MODEL_CREDENTIAL_EVENT, handler);
+  }, []);
+
+  const handleSaveCredential = async (values: {
+    base_url?: string;
+    api_key?: string;
+  }) => {
+    setSavingCredential(true);
+    try {
+      const next = await providerApi.setMyCredential({
+        base_url: values.base_url?.trim() || null,
+        api_key: values.api_key?.trim() || null,
+      });
+      setCredential(next);
+      // The stored key is never echoed back — never keep it in the form either.
+      credentialForm.setFieldsValue({ api_key: "" });
+      message.success(t("account.credentialSaved"));
+    } catch (e) {
+      message.error(apiErrorMessage(e, t("account.credentialSaveFailed"), t));
+    } finally {
+      setSavingCredential(false);
+    }
+  };
+
+  const handleClearCredential = async () => {
+    setClearingCredential(true);
+    try {
+      await providerApi.clearMyCredential();
+      setCredential({ base_url: null, has_api_key: false });
+      credentialForm.resetFields();
+      message.success(t("account.credentialCleared"));
+    } catch (e) {
+      message.error(apiErrorMessage(e, t("account.credentialClearFailed"), t));
+    } finally {
+      setClearingCredential(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!credentialOpen) return;
+    setLoadingCredential(true);
+    void providerApi
+      .getMyCredential()
+      .then((next) => {
+        setCredential(next);
+        credentialForm.setFieldsValue({
+          base_url: next.base_url ?? DEFAULT_CREDENTIAL_BASE_URL,
+        });
+      })
+      .catch(() => undefined)
+      .finally(() => setLoadingCredential(false));
+  }, [credentialForm, credentialOpen]);
+
+  const hasCredential = Boolean(
+    credential?.base_url || credential?.has_api_key,
+  );
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -405,6 +504,15 @@ export default function AvatarDropdown({
       <button type="button" className={styles.menuItem} onClick={openSettings}>
         <Settings size={16} strokeWidth={1.8} />
         <span>{t("account.settings")}</span>
+      </button>
+
+      <button
+        type="button"
+        className={styles.menuItem}
+        onClick={openCredential}
+      >
+        <KeySquare size={16} strokeWidth={1.8} />
+        <span>{t("account.credentialMenu")}</span>
       </button>
 
       <button type="button" className={styles.menuItem} onClick={openPassword}>
@@ -814,6 +922,93 @@ export default function AvatarDropdown({
     </div>
   );
 
+  const credentialBody = (
+    <div className={styles.settingsBody}>
+      <section className={styles.settingsSection}>
+        <div className={styles.settingsSectionHead}>
+          <p className={styles.settingsSectionDesc}>
+            {t("account.credentialHint")}
+          </p>
+        </div>
+
+        <div className={styles.credentialStatus}>
+          <span>{t("account.credentialStatus")}</span>
+          <Tag color={hasCredential ? "green" : "default"}>
+            {hasCredential
+              ? t("account.credentialConfigured")
+              : t("account.credentialNotConfigured")}
+          </Tag>
+        </div>
+
+        <Form
+          form={credentialForm}
+          onFinish={handleSaveCredential}
+          layout="vertical"
+          requiredMark={false}
+          disabled={loadingCredential}
+          className={styles.settingsForm}
+        >
+          <Form.Item
+            name="base_url"
+            label={t("account.credentialBaseUrl")}
+            extra={t("account.credentialBaseUrlHint")}
+          >
+            <Input
+              placeholder={t("account.credentialBaseUrlPlaceholder")}
+              allowClear
+            />
+          </Form.Item>
+          <Form.Item
+            name="api_key"
+            label={t("account.credentialApiKey")}
+            extra={t("account.credentialApiKeyExtra")}
+            rules={[
+              {
+                required: true,
+                message: t("account.credentialApiKeyRequired"),
+              },
+            ]}
+          >
+            <Input.Password
+              autoComplete="off"
+              placeholder={t("account.credentialApiKeyPlaceholder")}
+              prefix={<KeyRound {...PASSWORD_FIELD_ICON_PROPS} />}
+            />
+          </Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={savingCredential}
+            disabled={loadingCredential}
+            block
+          >
+            {t("account.credentialSave")}
+          </Button>
+          {hasCredential && (
+            <Popconfirm
+              title={t("account.credentialClearConfirm")}
+              okText={t("common.confirm")}
+              cancelText={t("common.cancel")}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => void handleClearCredential()}
+            >
+              <Button
+                danger
+                type="text"
+                loading={clearingCredential}
+                disabled={loadingCredential}
+                block
+                style={{ marginTop: 8 }}
+              >
+                {t("account.credentialClear")}
+              </Button>
+            </Popconfirm>
+          )}
+        </Form>
+      </section>
+    </div>
+  );
+
   return (
     <>
       <Popover
@@ -893,6 +1088,39 @@ export default function AvatarDropdown({
           className={styles.settingsModal}
         >
           {passwordBody}
+        </Modal>
+      )}
+
+      {isMobile ? (
+        <Drawer
+          title={t("account.credentialMenu")}
+          open={credentialOpen}
+          onClose={closeCredential}
+          placement="bottom"
+          height="auto"
+          destroyOnHidden
+          className={styles.settingsDrawer}
+          styles={{
+            body: {
+              paddingTop: 8,
+              paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+            },
+          }}
+        >
+          {credentialBody}
+        </Drawer>
+      ) : (
+        <Modal
+          title={t("account.credentialMenu")}
+          open={credentialOpen}
+          onCancel={closeCredential}
+          footer={null}
+          destroyOnHidden
+          centered
+          width={480}
+          className={styles.settingsModal}
+        >
+          {credentialBody}
         </Modal>
       )}
     </>

@@ -8,6 +8,8 @@ import type {
   AddModelRequest,
   ModelCost,
   ResolvedModel,
+  MyModelCredential,
+  MyModelCredentialRequest,
   TestModelResponse,
   TestModelDirectRequest,
   TestSearchResponse,
@@ -115,6 +117,19 @@ export const providerApi = {
       method: "POST",
       body: JSON.stringify(params),
     }),
+
+  /* ---- Per-user model credentials ---- */
+
+  getMyCredential: () => request<MyModelCredential>("/providers/my-credential"),
+
+  setMyCredential: (body: MyModelCredentialRequest) =>
+    request<MyModelCredential>("/providers/my-credential", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  clearMyCredential: () =>
+    request<void>("/providers/my-credential", { method: "DELETE" }),
 
   /* ---- Test search connectivity ---- */
 
