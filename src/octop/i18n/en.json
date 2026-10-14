@@ -381,6 +381,7 @@
     "NOT_FOUND": "Not found.",
     "USER_DISABLED": "This account has been disabled.",
     "LOGIN_LOCKED": "Too many failed sign-in attempts. Try again in {minutes} minutes.",
+    "LOCAL_LOGIN_DISABLED": "This site signs in through single sign-on only; local accounts are closed. Use the single sign-on button on the sign-in page.",
     "USERNAME_TAKEN": "Username is already taken.",
     "EMAIL_TAKEN": "Email is already taken.",
     "EMAIL_INVALID": "Invalid email address.",

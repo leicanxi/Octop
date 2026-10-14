@@ -68,8 +68,13 @@ import {
 import styles from "./AvatarDropdown.module.less";
 
 const GITHUB_URL = "https://github.com/TencentCloud/Octop";
-const HELP_FEEDBACK_URL = "https://octop.cloud";
-const APP_OAUTH_KINDS = new Set(["feishu", "dingtalk", "wecom"]);
+// FlowBee runs the feedback center (FeedLog) behind a shared-secret ticket that
+// only the newapi side can sign, so we point at newapi's handoff page rather
+// than at the center itself: the session the user already holds from signing in
+// through FlowBee is what gets them in without registering a second account.
+const HELP_FEEDBACK_URL = "https://flowbee.top/feedback";
+/** Providers a signed-in user can link to (and unlink from) in this menu. */
+const BINDABLE_SSO_KINDS = new Set(["feishu", "dingtalk", "wecom", "flowbee"]);
 
 // FlowBee's OpenAI-compatible endpoint — pre-filled so users only paste their key.
 const DEFAULT_CREDENTIAL_BASE_URL = "https://flowbee.top/v1";
@@ -80,6 +85,17 @@ const PASSWORD_FIELD_ICON_PROPS = {
 };
 
 function oauthProviderIcon(kind: string): ReactNode {
+  if (kind === "flowbee") {
+    return (
+      <img
+        src="/flowbee-mark.png"
+        alt=""
+        width={20}
+        height={20}
+        draggable={false}
+      />
+    );
+  }
   const src =
     kind === "feishu"
       ? feishuIcon
@@ -217,7 +233,7 @@ export default function AvatarDropdown({
   };
 
   const bindableProviders = ssoProviders.filter((item) =>
-    APP_OAUTH_KINDS.has(item.kind),
+    BINDABLE_SSO_KINDS.has(item.kind),
   );
   const linkedKinds = new Set(
     (user?.sso_identities ?? [])
@@ -241,7 +257,7 @@ export default function AvatarDropdown({
     seenSsoKinds.add(provider.kind);
   }
   for (const kind of linkedKinds) {
-    if (!APP_OAUTH_KINDS.has(kind) || seenSsoKinds.has(kind)) continue;
+    if (!BINDABLE_SSO_KINDS.has(kind) || seenSsoKinds.has(kind)) continue;
     ssoRows.push({ kind, display_name: "" });
   }
 

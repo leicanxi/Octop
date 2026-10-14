@@ -49,7 +49,7 @@ async def test_oauth_public_routes_and_oidc_kind_share_redirect(
     status = await c.get("/api/auth/oauth/status")
     assert status.status_code == 200
     kinds = {item["kind"] for item in status.json()["providers"]}
-    assert kinds == {"oidc", "feishu", "dingtalk", "wecom"}
+    assert kinds == {"oidc", "feishu", "dingtalk", "wecom", "flowbee"}
 
     start = await c.post("/api/auth/oauth/start", json={"kind": "oidc", "redirect_after": "/chat"})
     assert start.status_code == 200
@@ -81,7 +81,7 @@ async def test_oauth_bind_requires_auth_and_providers_are_not_public(client) -> 
     # Provider is not configured, so start is a 400 — but it is authenticated.
     assert started.status_code == 400
 
-    for kind in ("feishu", "dingtalk", "wecom"):
+    for kind in ("feishu", "dingtalk", "wecom", "flowbee"):
         config = await c.get(f"/api/auth/oauth/providers/{kind}", headers=bearer(token))
         assert config.status_code == 200
         assert config.json()["kind"] == kind

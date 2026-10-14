@@ -164,7 +164,11 @@ async def test_tencent_login_mocked_ok_returns_jwt(client: Any, siteverify: Any)
         cam_key="camkey",
     )
     pub = await c.get("/api/auth/captcha")
-    assert pub.json() == {"provider": "tencent", "site_key": "195642000"}
+    assert pub.json() == {
+        "provider": "tencent",
+        "site_key": "195642000",
+        "local_login_enabled": True,
+    }
     r = await c.post(
         "/api/auth/login",
         json={
@@ -328,7 +332,11 @@ async def test_admin_captcha_get_put_and_null_delete(env: Any) -> None:
     assert "camkey" not in str(r.json())
 
     pub = await c.get("/api/auth/captcha")
-    assert pub.json() == {"provider": "turnstile", "site_key": "0xsite"}
+    assert pub.json() == {
+        "provider": "turnstile",
+        "site_key": "0xsite",
+        "local_login_enabled": True,
+    }
 
     r = await c.put(
         "/api/settings/captcha",
@@ -338,7 +346,7 @@ async def test_admin_captcha_get_put_and_null_delete(env: Any) -> None:
     assert r.status_code == 200
     assert "turnstile" not in r.json()["providers"]
     pub = await c.get("/api/auth/captcha")
-    assert pub.json() == {"provider": "slider"}
+    assert pub.json() == {"provider": "slider", "local_login_enabled": True}
 
 
 async def test_admin_captcha_forbidden_without_permission(env: Any) -> None:

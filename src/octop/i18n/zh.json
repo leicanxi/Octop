@@ -381,6 +381,7 @@
     "NOT_FOUND": "未找到。",
     "USER_DISABLED": "账号已禁用。",
     "LOGIN_LOCKED": "登录失败次数过多，请 {minutes} 分钟后再试。",
+    "LOCAL_LOGIN_DISABLED": "本站仅支持单点登录，本地账号已关闭。请使用登录页上的单点登录按钮。",
     "USERNAME_TAKEN": "用户名已被占用。",
     "EMAIL_TAKEN": "邮箱已被占用。",
     "EMAIL_INVALID": "邮箱格式不正确。",

@@ -79,6 +79,8 @@ export interface LoginResponse {
 export interface PublicCaptcha {
   provider: string;
   site_key?: string;
+  /** False when the deployment is SSO-only: the password form is closed for non-admins. */
+  local_login_enabled?: boolean;
 }
 
 export interface OidcStatus {

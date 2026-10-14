@@ -69,6 +69,12 @@ class LoginBody(BaseModel):
 class CaptchaPublicResponse(BaseModel):
     provider: str
     site_key: str | None = None
+    # Defaults to True so a dashboard build that predates this field keeps
+    # rendering the form it always did.
+    local_login_enabled: bool = Field(
+        default=True,
+        description="Whether the built-in username/password form is open (config `local_login_enabled`).",
+    )
 
 
 class ChangePasswordBody(BaseModel):
@@ -78,12 +84,16 @@ class ChangePasswordBody(BaseModel):
 
 @router.get(
     "/captcha",
-    summary="Public login captcha config",
+    summary="Public sign-in form config",
     response_model=CaptchaPublicResponse,
     response_model_exclude_none=True,
 )
 async def get_captcha(server: Any = Depends(get_server)) -> CaptchaPublicResponse:
-    """Return the active login captcha provider and public site key. No secret."""
+    """Return the public config the sign-in form needs.
+
+    That is the active captcha provider plus its public site key, and whether the
+    built-in username/password form is open at all (``local_login_enabled``). No secret.
+    """
     if server.user_manager.count() == 0:
         raise OctopError(ErrorCode.SETUP_REQUIRED, "initial admin not created")
     effective = load_effective(
@@ -91,7 +101,10 @@ async def get_captcha(server: Any = Depends(get_server)) -> CaptchaPublicRespons
         server.services.secret_repo,
         current_env(),
     )
-    return CaptchaPublicResponse.model_validate(public_config(effective))
+    return CaptchaPublicResponse(
+        local_login_enabled=bool(server.services.config.local_login_enabled),
+        **public_config(effective),
+    )
 
 
 def _client_ip(request: Request) -> str:
@@ -178,6 +191,11 @@ async def login(
     legitimately own. Any account holding its own password stops at the local
     check, so a mistyped local password is never forwarded to the directory nor
     counted against the directory's lockout policy.
+
+    ``local_login_enabled`` does not gate this route: it is a presentation switch
+    that hides the form (``GET /auth/captcha`` reports it). Octop has no open
+    sign-up — accounts come from the wizard, an admin, or an invite — so closing
+    the *form* is what makes a deployment SSO-only in practice.
     """
     if server.user_manager.count() == 0:
         raise OctopError(ErrorCode.SETUP_REQUIRED, "initial admin not created")

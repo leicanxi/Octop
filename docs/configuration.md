@@ -155,6 +155,7 @@ Each variable, when set, takes precedence over the matching key in
 | `OCTOP_ENABLE_API_DOCS` | bool | `false` | Expose Scalar API docs at `/api/docs` |
 | `OCTOP_REQUIRE_SETUP_PASSWORD` | bool | `true` | Require wizard password during initial setup |
 | `OCTOP_REQUIRE_MODEL_CREDENTIAL` | bool | `true` | Non-admin users must store their own model API key before any model call is served; admins keep using the shared provider |
+| `OCTOP_LOCAL_LOGIN_ENABLED` | bool | `true` | `false` hides the username/password form on the sign-in page, leaving SSO as the only way in. Invite redemption is refused in that mode, since it mints an account the hidden form could never sign in again |
 | `OCTOP_MAX_UPLOAD_MB` | int | `100` | Max upload size in MiB for chat attachments, IM inbound, and knowledge documents (1–1024) |
 | `OCTOP_DATABASE_URL` | string | empty | Full DSN — overrides the `OCTOP_DATABASE_*` fields below |
 | `OCTOP_DATABASE_DRIVER` | `sqlite` \| `postgresql` | `sqlite` | Storage backend |

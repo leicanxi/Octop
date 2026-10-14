@@ -26,6 +26,7 @@ const OAUTH_BRAND_ICONS: Record<OauthAppKind, string> = {
   feishu: feishuIcon,
   wecom: wecomIcon,
   dingtalk: dingtalkIcon,
+  flowbee: "/flowbee-mark.png",
 };
 
 function BrandTabIcon({
@@ -57,6 +58,11 @@ const TABS: TabBarItem<TabKey>[] = [
     icon: <BrandTabIcon src={dingtalkIcon} />,
   },
   {
+    key: "flowbee",
+    labelKey: "adminUsers.tabFlowbee",
+    icon: <BrandTabIcon src={OAUTH_BRAND_ICONS.flowbee} />,
+  },
+  {
     key: "oidc",
     labelKey: "adminUsers.tabOidc",
     icon: <BrandTabIcon src={openidIcon} />,
@@ -74,6 +80,7 @@ function parseTab(raw: string | null): TabKey {
     raw === "feishu" ||
     raw === "wecom" ||
     raw === "dingtalk" ||
+    raw === "flowbee" ||
     raw === "oidc" ||
     raw === "ldap"
   ) {
@@ -143,7 +150,8 @@ export default function AdminUsersPage() {
   } else if (
     activeTab === "feishu" ||
     activeTab === "wecom" ||
-    activeTab === "dingtalk"
+    activeTab === "dingtalk" ||
+    activeTab === "flowbee"
   ) {
     body = <OauthTabPanel kind={activeTab} />;
   }

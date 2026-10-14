@@ -35,6 +35,8 @@ interface SsoAppProviderShellProps {
   standalone?: boolean;
   /** Checklist progress 0–5 (same model as OIDC aside). */
   guideStep?: number;
+  /** Override the first checklist step (App ID wording does not fit every provider). */
+  guideStep1Key?: string;
   enabled?: boolean;
   previewName?: string;
   children: ReactNode;
@@ -60,12 +62,17 @@ export default function SsoAppProviderShell({
   defaultOpen = false,
   standalone = false,
   guideStep = 0,
+  guideStep1Key,
   enabled = false,
   previewName = "",
   children,
 }: SsoAppProviderShellProps) {
   const { t } = useTranslation();
   const previewLabel = previewName.trim() || t("adminSso.statusUnnamed");
+  const guideSteps = [
+    guideStep1Key ?? OAUTH_GUIDE_STEPS[0],
+    ...OAUTH_GUIDE_STEPS.slice(1),
+  ];
 
   const body = (
     <div className={styles.ssoLayout}>
@@ -73,7 +80,7 @@ export default function SsoAppProviderShell({
         <div className={styles.ssoGuide}>
           <div className={styles.ssoAsideTitle}>{t("adminSso.guideTitle")}</div>
           <ol className={styles.ssoGuideList}>
-            {OAUTH_GUIDE_STEPS.map((key, index) => {
+            {guideSteps.map((key, index) => {
               const done = guideStep > index;
               const current = guideStep === index;
               return (

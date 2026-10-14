@@ -153,7 +153,13 @@ async def redeem_invite(
 
     Also bootstraps the same default ``general-assistant`` expert as the setup
     wizard (auto-allocated agent id; setup pins ``main`` for the first admin).
+
+    Refused while ``local_login_enabled`` is off: redemption mints a password
+    account and signs it in, but the sign-in form is hidden, so that account
+    could never sign in again.
     """
+    if not server.services.config.local_login_enabled:
+        raise OctopError(ErrorCode.LOCAL_LOGIN_DISABLED, "local sign-in is disabled")
     check_invite_rate_limit(_client_id(request))
     locale = resolve_request_locale(request)
     user = await server.user_manager.create_from_invite(

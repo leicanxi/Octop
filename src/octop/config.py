@@ -139,6 +139,11 @@ class OctopConfig:
     # credentials before any model call is served (see the middleware of the
     # same concern). Admins keep using the shared provider.
     require_user_model_credential: bool = True
+    # SSO-only switch: the dashboard hides the built-in username/password form
+    # (reported by ``GET /auth/captcha``). Invite redemption is refused with it,
+    # because it would mint a password account that the hidden form can never
+    # sign in again.
+    local_login_enabled: bool = True
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     # False when config.json omits ``database`` (use PathLayout.db unless env overrides).
     database_in_file: bool = False
@@ -505,6 +510,10 @@ def load_config(path: Path) -> OctopConfig:
             v,
             bool(merged["require_user_model_credential"]),
         )
+    if v := os.environ.get("OCTOP_LOCAL_LOGIN_ENABLED"):
+        merged["local_login_enabled"] = _coerce_bool(
+            "OCTOP_LOCAL_LOGIN_ENABLED", v, bool(merged["local_login_enabled"])
+        )
     if v := os.environ.get("OCTOP_MAX_UPLOAD_MB"):
         merged["max_upload_mb"] = parse_max_upload_mb(
             v, default=int(merged.get("max_upload_mb", DEFAULT_MAX_UPLOAD_MB))
@@ -626,6 +635,7 @@ def load_config(path: Path) -> OctopConfig:
         ),
         require_setup_password=bool(merged["require_setup_password"]),
         require_user_model_credential=bool(merged["require_user_model_credential"]),
+        local_login_enabled=bool(merged["local_login_enabled"]),
         database=parse_database_config(merged_db),
         database_in_file=database_in_file,
         tls=_parse_tls_section(raw.get("tls")),

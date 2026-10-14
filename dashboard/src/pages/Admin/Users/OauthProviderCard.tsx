@@ -24,10 +24,11 @@ import styles from "./index.module.less";
 interface OauthFormValues {
   enabled: boolean;
   display_name: string;
-  client_id: string;
+  client_id?: string;
   client_secret?: string;
   region?: "feishu" | "lark";
   agent_id?: string;
+  handoff_url?: string;
 }
 
 interface OauthProviderCardProps {
@@ -100,6 +101,7 @@ function OauthProviderCardLive({
   const displayName = Form.useWatch("display_name", form) ?? "";
   const clientId = Form.useWatch("client_id", form) ?? "";
   const agentId = Form.useWatch("agent_id", form) ?? "";
+  const handoffUrl = Form.useWatch("handoff_url", form) ?? "";
 
   const applyConfig = useCallback(
     (config: OauthAppConfig) => {
@@ -113,6 +115,10 @@ function OauthProviderCardLive({
         agent_id:
           typeof config.extra?.agent_id === "string"
             ? config.extra.agent_id
+            : "",
+        handoff_url:
+          typeof config.extra?.handoff_url === "string"
+            ? config.extra.handoff_url
             : "",
       });
       setRedirectUri(config.redirect_uri ?? "");
@@ -147,7 +153,7 @@ function OauthProviderCardLive({
       const body: OauthAppConfigPut = {
         enabled: values.enabled,
         display_name: values.display_name.trim(),
-        client_id: values.client_id.trim(),
+        client_id: values.client_id?.trim() ?? "",
         client_secret: values.client_secret?.trim() || undefined,
       };
       if (provider.hasRegion) {
@@ -157,6 +163,12 @@ function OauthProviderCardLive({
         body.extra = {
           ...body.extra,
           agent_id: values.agent_id?.trim() || "",
+        };
+      }
+      if (provider.hasHandoffUrl) {
+        body.extra = {
+          ...body.extra,
+          handoff_url: values.handoff_url?.trim() || "",
         };
       }
       applyConfig(await ssoApi.putOauthProvider(provider.kind, body));
@@ -263,9 +275,10 @@ function OauthProviderCardLive({
   const previewName = displayName.trim() || t(provider.defaultNameKey);
 
   const guideStep = (() => {
-    const credentialsReady =
-      Boolean(clientId.trim()) &&
-      (!provider.hasAgentId || Boolean(String(agentId).trim()));
+    const credentialsReady = provider.hasHandoffUrl
+      ? Boolean(String(handoffUrl).trim())
+      : Boolean(clientId.trim()) &&
+        (!provider.hasAgentId || Boolean(String(agentId).trim()));
     if (!credentialsReady) return 0;
     if (!redirectUri) return 1;
     if (dirty) return 2;
@@ -276,6 +289,18 @@ function OauthProviderCardLive({
 
   const extraFields: ReactNode = (
     <>
+      {provider.hasHandoffUrl ? (
+        <Form.Item
+          name="handoff_url"
+          label={t("adminSso.handoffUrl")}
+          extra={t("adminSso.handoffUrlHint")}
+          rules={[
+            { required: true, message: t("adminSso.handoffUrlRequired") },
+          ]}
+        >
+          <Input autoComplete="off" />
+        </Form.Item>
+      ) : null}
       {provider.hasRegion ? (
         <Form.Item name="region" label={t("adminSso.feishuRegion")}>
           <Select
@@ -381,6 +406,7 @@ function OauthProviderCardLive({
               : undefined
           }
           guideStep={guideStep}
+          guideStep1Key={provider.guideStep1Key}
           enabled={enabled}
           previewName={previewName}
         >
@@ -410,22 +436,30 @@ function OauthProviderCardLive({
           <section className={styles.ssoSection}>
             <div className={styles.ssoSectionHeader}>
               <h4 className={styles.ssoSectionTitle}>
-                {t("adminSso.oauthSectionCredentials")}
+                {t(
+                  provider.sectionCredentialsKey ??
+                    "adminSso.oauthSectionCredentials",
+                )}
               </h4>
               <p className={styles.ssoSectionHint}>
-                {t("adminSso.oauthSectionCredentialsHint")}
+                {t(
+                  provider.sectionCredentialsHintKey ??
+                    "adminSso.oauthSectionCredentialsHint",
+                )}
               </p>
             </div>
             <div className={styles.ssoFieldGrid}>
-              <Form.Item
-                name="client_id"
-                label={t(provider.clientIdKey ?? "adminSso.oauthAppId")}
-                rules={[
-                  { required: true, message: t("adminSso.clientIdRequired") },
-                ]}
-              >
-                <Input autoComplete="off" />
-              </Form.Item>
+              {provider.hasClientId === false ? null : (
+                <Form.Item
+                  name="client_id"
+                  label={t(provider.clientIdKey ?? "adminSso.oauthAppId")}
+                  rules={[
+                    { required: true, message: t("adminSso.clientIdRequired") },
+                  ]}
+                >
+                  <Input autoComplete="off" />
+                </Form.Item>
+              )}
               <Form.Item
                 name="client_secret"
                 label={
@@ -442,7 +476,10 @@ function OauthProviderCardLive({
                 extra={
                   hasClientSecret
                     ? t("adminSso.clientSecretConfigured")
-                    : t("adminSso.oauthClientSecretHint")
+                    : t(
+                        provider.clientSecretHintKey ??
+                          "adminSso.oauthClientSecretHint",
+                      )
                 }
               >
                 <Input.Password

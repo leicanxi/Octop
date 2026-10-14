@@ -165,19 +165,23 @@ class SsoService:
             extra = {"agent_id": agent_id}
         elif kind == "dingtalk":
             extra = {}
+        elif kind == "flowbee":
+            handoff_raw = extra.get("handoff_url", "")
+            extra = {"handoff_url": handoff_raw.strip() if isinstance(handoff_raw, str) else ""}
 
         dashboard_origin = self._nullable_string(body, "dashboard_origin", current)
-        if kind in {"feishu", "dingtalk", "wecom"}:
+        if kind in {"feishu", "dingtalk", "wecom", "flowbee"}:
             dashboard_origin = parse_strict_origin(dashboard_origin)
 
         issuer = self._string(body, "issuer", current, "")
-        if kind in {"feishu", "dingtalk", "wecom"}:
+        if kind in {"feishu", "dingtalk", "wecom", "flowbee"}:
             issuer = ""
 
         default_names = {
             "feishu": "Feishu",
             "dingtalk": "DingTalk",
             "wecom": "WeCom",
+            "flowbee": "FlowBee",
         }
         provider = self._services.sso_repo.upsert_by_kind(
             kind,

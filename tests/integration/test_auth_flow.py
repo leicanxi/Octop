@@ -82,7 +82,7 @@ async def test_captcha_public_is_setup_locked_then_slider(client):
     await bootstrap_admin(c, home, username="alice", password="TestPass12")
     r = await c.get("/api/auth/captcha")
     assert r.status_code == 200
-    assert r.json() == {"provider": "slider"}
+    assert r.json() == {"provider": "slider", "local_login_enabled": True}
 
 
 async def test_patch_me_updates_display_name(client) -> None:

@@ -44,6 +44,12 @@ function providerLabel(
   });
 }
 
+/**
+ * Providers that must own the whole window: the browser has to pass through
+ * their own sign-in page (an OIDC IdP, or the FlowBee handoff page).
+ */
+const FULL_PAGE_SSO_KINDS = new Set(["oidc", "flowbee"]);
+
 function providerIcon(provider: OauthProviderStatus): ReactNode {
   if (provider.kind === "feishu") {
     return (
@@ -58,6 +64,17 @@ function providerIcon(provider: OauthProviderStatus): ReactNode {
   if (provider.kind === "wecom") {
     return (
       <img src={wecomIcon} alt="" width={18} height={18} draggable={false} />
+    );
+  }
+  if (provider.kind === "flowbee") {
+    return (
+      <img
+        src="/flowbee-mark.png"
+        alt=""
+        width={18}
+        height={18}
+        draggable={false}
+      />
     );
   }
   const name = provider.display_name.trim().toLowerCase();
@@ -89,6 +106,8 @@ export default function LoginPage() {
   const [captcha, setCaptcha] = useState<PublicCaptchaConfig>({
     provider: "slider",
   });
+  /** False when the server runs SSO-only; the local form is hidden then. */
+  const [localLoginEnabled, setLocalLoginEnabled] = useState(true);
   const captchaRef = useRef<CaptchaFieldHandle>(null);
 
   useEffect(() => {
@@ -124,7 +143,9 @@ export default function LoginPage() {
         authApi
           .getCaptcha()
           .then((next) => {
-            if (!cancelled) setCaptcha(next);
+            if (cancelled) return;
+            setCaptcha(next);
+            setLocalLoginEnabled(next.local_login_enabled ?? true);
           })
           .catch(() => {
             if (!cancelled) setCaptcha({ provider: "slider" });
@@ -187,12 +208,12 @@ export default function LoginPage() {
     setSsoLoadingKind(kind);
     setRememberLoginPreference(remember);
     let popup: Window | null = null;
-    if (kind !== "oidc") {
+    if (!FULL_PAGE_SSO_KINDS.has(kind)) {
       popup = openSsoPopup();
     }
     try {
       const { authorization_url } = await authApi.startOauth(kind, "/chat");
-      if (kind === "oidc") {
+      if (FULL_PAGE_SSO_KINDS.has(kind)) {
         window.location.href = authorization_url;
         return;
       }
@@ -282,165 +303,196 @@ export default function LoginPage() {
           {t("login.title")}
         </h2>
 
-        <div style={{ width: "100%" }}>
-          <Input
-            prefix={
-              <User size={16} style={{ color: "var(--fn-text-quaternary)" }} />
-            }
-            placeholder={t("login.username")}
-            size="large"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-            aria-describedby="login-username-hint"
-            style={{ borderRadius: 10 }}
-          />
-          <div
-            id="login-username-hint"
-            style={{
-              marginTop: 6,
-              fontSize: 12,
-              color: "var(--fn-text-tertiary)",
-              lineHeight: 1.4,
-            }}
-          >
-            {t("login.usernameHint")}
-          </div>
-        </div>
-
-        <Input.Password
-          prefix={
-            <Lock size={16} style={{ color: "var(--fn-text-quaternary)" }} />
-          }
-          placeholder={t("login.password")}
-          size="large"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onPressEnter={handleLogin}
-          style={{ borderRadius: 10 }}
-        />
-
-        {ldap?.enabled && (
-          <p
-            style={{
-              margin: 0,
-              marginTop: -8,
-              width: "100%",
-              fontSize: 12,
-              lineHeight: 1.5,
-              color: "var(--fn-text-tertiary)",
-              textAlign: "center",
-            }}
-          >
-            {t("login.ldapHint", {
-              name: ldap.display_name.trim() || t("adminSso.ldap.kind"),
-            })}
-          </p>
-        )}
-
-        <CaptchaField
-          ref={captchaRef}
-          config={captcha}
-          resetKey={captchaResetKey}
-          slideHint={t("login.slideHint")}
-          slideVerifiedLabel={t("login.slideVerified")}
-          unsupportedLabel={t("login.unsupportedCaptcha")}
-          onReadyChange={setCaptchaReady}
-        />
-
-        <Button
-          type="primary"
-          size="large"
-          block
-          loading={loading}
-          onClick={handleLogin}
-          disabled={!username || !password || !captchaReady}
-          style={{ borderRadius: 10, height: 44, fontWeight: 500 }}
-        >
-          {t("login.submit")}
-        </Button>
-
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              width: "100%",
-            }}
-          >
-            <Checkbox
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              style={{
-                margin: 0,
-                fontSize: 13,
-                color: "var(--fn-text-tertiary)",
-              }}
-            >
-              {t("login.remember")}
-            </Checkbox>
-            <button
-              type="button"
-              data-testid="login-forgot-password-toggle"
-              onClick={() => setShowForgotHelp(true)}
-              style={{
-                margin: 0,
-                padding: 0,
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                lineHeight: 1.5,
-                color: "var(--fn-text-tertiary)",
-                flexShrink: 0,
-              }}
-            >
-              {t("login.forgotPassword", "Forgot password?")}
-            </button>
-          </div>
-          <ForgotPasswordModal
-            open={showForgotHelp}
-            onClose={() => setShowForgotHelp(false)}
-          />
-        </div>
-
-        {providers.length > 0 && (
+        {localLoginEnabled && (
           <>
+            <div style={{ width: "100%" }}>
+              <Input
+                prefix={
+                  <User
+                    size={16}
+                    style={{ color: "var(--fn-text-quaternary)" }}
+                  />
+                }
+                placeholder={t("login.username")}
+                size="large"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoFocus
+                aria-describedby="login-username-hint"
+                style={{ borderRadius: 10 }}
+              />
+              <div
+                id="login-username-hint"
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: "var(--fn-text-tertiary)",
+                  lineHeight: 1.4,
+                }}
+              >
+                {t("login.usernameHint")}
+              </div>
+            </div>
+
+            <Input.Password
+              prefix={
+                <Lock
+                  size={16}
+                  style={{ color: "var(--fn-text-quaternary)" }}
+                />
+              }
+              placeholder={t("login.password")}
+              size="large"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onPressEnter={handleLogin}
+              style={{ borderRadius: 10 }}
+            />
+
+            {ldap?.enabled && (
+              <p
+                style={{
+                  margin: 0,
+                  marginTop: -8,
+                  width: "100%",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: "var(--fn-text-tertiary)",
+                  textAlign: "center",
+                }}
+              >
+                {t("login.ldapHint", {
+                  name: ldap.display_name.trim() || t("adminSso.ldap.kind"),
+                })}
+              </p>
+            )}
+
+            <CaptchaField
+              ref={captchaRef}
+              config={captcha}
+              resetKey={captchaResetKey}
+              slideHint={t("login.slideHint")}
+              slideVerifiedLabel={t("login.slideVerified")}
+              unsupportedLabel={t("login.unsupportedCaptcha")}
+              onReadyChange={setCaptchaReady}
+            />
+
+            <Button
+              type="primary"
+              size="large"
+              block
+              loading={loading}
+              onClick={handleLogin}
+              disabled={!username || !password || !captchaReady}
+              style={{ borderRadius: 10, height: 44, fontWeight: 500 }}
+            >
+              {t("login.submit")}
+            </Button>
+
             <div
               style={{
                 width: "100%",
                 display: "flex",
-                alignItems: "center",
-                gap: 12,
-                color: "var(--fn-text-tertiary)",
-                fontSize: 13,
+                flexDirection: "column",
+                gap: 8,
               }}
             >
-              <span
+              <div
                 style={{
-                  flex: 1,
-                  height: 1,
-                  background: "var(--fn-border-primary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  width: "100%",
                 }}
-              />
-              {t("login.or")}
-              <span
-                style={{
-                  flex: 1,
-                  height: 1,
-                  background: "var(--fn-border-primary)",
-                }}
+              >
+                <Checkbox
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  style={{
+                    margin: 0,
+                    fontSize: 13,
+                    color: "var(--fn-text-tertiary)",
+                  }}
+                >
+                  {t("login.remember")}
+                </Checkbox>
+                <button
+                  type="button"
+                  data-testid="login-forgot-password-toggle"
+                  onClick={() => setShowForgotHelp(true)}
+                  style={{
+                    margin: 0,
+                    padding: 0,
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: "var(--fn-text-tertiary)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {t("login.forgotPassword", "Forgot password?")}
+                </button>
+              </div>
+              <ForgotPasswordModal
+                open={showForgotHelp}
+                onClose={() => setShowForgotHelp(false)}
               />
             </div>
+          </>
+        )}
+
+        {!localLoginEnabled && (
+          <p
+            style={{
+              margin: 0,
+              width: "100%",
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: "var(--fn-text-tertiary)",
+              textAlign: "center",
+            }}
+          >
+            {providers.length > 0
+              ? t("login.ssoOnlyHint")
+              : t("login.ssoOnlyNoProvider")}
+          </p>
+        )}
+
+        {providers.length > 0 && (
+          <>
+            {/* The divider only separates two methods; with the form hidden the
+                single sign-on buttons stand alone. */}
+            {localLoginEnabled && (
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  color: "var(--fn-text-tertiary)",
+                  fontSize: 13,
+                }}
+              >
+                <span
+                  style={{
+                    flex: 1,
+                    height: 1,
+                    background: "var(--fn-border-primary)",
+                  }}
+                />
+                {t("login.or")}
+                <span
+                  style={{
+                    flex: 1,
+                    height: 1,
+                    background: "var(--fn-border-primary)",
+                  }}
+                />
+              </div>
+            )}
             {providers.map((provider) => (
               <Button
                 key={provider.kind}
