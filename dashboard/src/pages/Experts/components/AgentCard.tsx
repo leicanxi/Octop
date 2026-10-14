@@ -60,6 +60,15 @@ function getStateMeta(state: string) {
 
 const TRANSIENT = new Set(["starting", "stopping"]);
 
+export interface AgentChannelSummary {
+  /** Channels configured for the agent. */
+  total: number;
+  /** Channels that are enabled and currently connected. */
+  connected: number;
+  /** Distinct channel kinds, e.g. ``weixin`` / ``qq``. */
+  kinds: string[];
+}
+
 export interface AgentCardProps {
   agent: OctopAgent;
   iconName?: string | null;
@@ -350,6 +359,13 @@ export const AgentCard = memo(function AgentCard({
                 />
                 {formatAgentState(localState, t)}
               </div>
+              {isOwner && (
+                <ChannelPill
+                  agentId={agent.agent_id}
+                  agentState={localState}
+                  onOpen={() => setChannelCatalogOpen(true)}
+                />
+              )}
               {memorySlimming && (
                 <Tag color="processing">{t("experts.memorySlimming")}</Tag>
               )}
@@ -573,3 +589,96 @@ export const AgentCard = memo(function AgentCard({
     </>
   );
 });
+
+/**
+ * Channel connection pill shown next to the state pill.
+ *
+ * Reads its own per-agent channel list so the entry is always present: a pending
+ * or failed read falls back to the neutral "connect" state instead of the pill
+ * disappearing. Refetches when the agent starts/stops, and opens the same channel
+ * drawer as the more-actions menu entry.
+ */
+function ChannelPill({
+  agentId,
+  agentState,
+  onOpen,
+}: {
+  agentId: string;
+  agentState: string;
+  onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  const [summary, setSummary] = useState<AgentChannelSummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await request<
+          {
+            enabled: boolean;
+            kind: string;
+            runtime?: { connected?: boolean };
+          }[]
+        >(`/agents/${agentId}/channels`);
+        if (cancelled) return;
+        const list = rows ?? [];
+        setSummary({
+          total: list.length,
+          connected: list.filter((c) => c.enabled && c.runtime?.connected)
+            .length,
+          kinds: Array.from(new Set(list.map((c) => c.kind))),
+        });
+      } catch {
+        // Keep the entry usable; an unreadable list just reads as "not connected".
+        if (!cancelled) setSummary({ total: 0, connected: 0, kinds: [] });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId, agentState]);
+
+  const { total, connected, kinds } = summary ?? {
+    total: 0,
+    connected: 0,
+    kinds: [] as string[],
+  };
+  const names = kinds
+    .slice(0, 2)
+    .map((kind) => t(`channels.label_${kind}`, kind))
+    .join("、");
+
+  const [color, background, label] =
+    connected > 0
+      ? [
+          "#16a34a",
+          "rgba(22, 163, 74, 0.12)",
+          t("experts.channelsPill.connected", { names }),
+        ]
+      : total > 0
+      ? [
+          "#d97706",
+          "rgba(217, 119, 6, 0.12)",
+          t("experts.channelsPill.offline", { count: total }),
+        ]
+      : [
+          "#8c8c8c",
+          "rgba(140, 140, 140, 0.12)",
+          t("experts.channelsPill.connect"),
+        ];
+
+  return (
+    <Tooltip title={t("experts.channelsPill.tooltip")}>
+      <button
+        type="button"
+        className={styles.agentCardChannelPill}
+        style={{ color, background }}
+        onClick={onOpen}
+      >
+        <span className={styles.stateDot2} style={{ background: color }} />
+        {label}
+      </button>
+    </Tooltip>
+  );
+}

@@ -246,6 +246,26 @@
   flex-shrink: 0;
 }
 
+/* Channel connection pill: same shape as the state pill, but clickable. */
+.agentCardChannelPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: currentColor;
+  }
+}
+
 .agentCard2Switch {
   flex-shrink: 0;
 }
