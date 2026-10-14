@@ -41,7 +41,7 @@ const PT_PASSPORT_BIN = path.join(SCRIPTS_DIR, 'node_modules', '.bin', 'pt-passp
 const AUTH_DIR = process.env.OCTOP_AUTH_DIR
     || path.join(require('os').homedir(), '.workbuddy', 'credentials', 'meituan-living-deals-assistant');
 
-// 自愈：专家模板经字节流拷贝播种到 Agent 工作区后，npm bin 的执行位会丢失。
+// 自愈：角色模板经字节流拷贝播种到 Agent 工作区后，npm bin 的执行位会丢失。
 // 这里在常量初始化阶段尽力恢复（含内层 cliguard），失败不阻塞启动。
 (function ensureBinExecBit() {
   const binPaths = [

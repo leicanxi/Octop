@@ -15,7 +15,7 @@ allowed_learning_modes:
 
 # 医学安全域模块清单。只有这些模块才应用信源白名单与医学禁用词。
 # 未列出的模块（通用写作、翻译、编程、数据整理、其它 skill 输出等）
-# 一律按通用助手校验，不因为身处本专家包而被降级或截断。
+# 一律按通用助手校验，不因为身处本角色包而被降级或截断。
 clinical_safety_modules:
   - clinical_q_and_a
   - guideline_learning

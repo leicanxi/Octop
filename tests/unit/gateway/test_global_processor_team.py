@@ -791,7 +791,7 @@ async def test_prepare_team_dispatch_includes_room_history(
     assert question == "survey market"
     assert "what is the market?" in dispatch
     assert "I will ask Researcher" in dispatch
-    assert "Team assignment" in dispatch or "团队派工" in dispatch
+    assert "Team assignment" in dispatch or "群聊派工" in dispatch
     taken = processor.teams.take_peer_prompt("child", "thr_parent~child")
     assert taken == pair
     assert harness.aget_history.await_count >= 1

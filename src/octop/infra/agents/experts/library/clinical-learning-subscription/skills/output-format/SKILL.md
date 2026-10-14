@@ -28,7 +28,7 @@ metadata:
 
 ## 资源路径
 
-以下路径均从当前 `skills/output-format/SKILL.md` 向上两级定位专家工作区，必须直接使用，不得通过 `glob`、`grep` 或递归 `ls` 寻找，也不得为调用校验器而先读取脚本源码：
+以下路径均从当前 `skills/output-format/SKILL.md` 向上两级定位角色工作区，必须直接使用，不得通过 `glob`、`grep` 或递归 `ls` 寻找，也不得为调用校验器而先读取脚本源码：
 
 - `../../references/output-templates.md`
 - `../../references/source-policy.yaml`

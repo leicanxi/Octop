@@ -605,7 +605,7 @@ export default function BrowserAiPanel({
       <div className={styles.contextSection}>
         <div className={styles.expertSelectRow}>
           <span className={styles.contextLabel}>
-            {t("remoteBrowser.ai.expert", "专家")}
+            {t("remoteBrowser.ai.expert", "角色")}
           </span>
           <AgentSelector variant="select" showLabel={false} />
         </div>

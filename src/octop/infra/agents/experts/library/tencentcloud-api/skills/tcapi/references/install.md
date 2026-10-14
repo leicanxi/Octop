@@ -1,6 +1,6 @@
 # 安装 TCCLI
 
-**首选：装进 Octop 自带的 Python 虚拟环境（venv）**——与 Octop 运行环境一致、版本可控、不污染系统 Python、无需 sudo。Octop 专家的 Agent 命令执行时继承该环境。
+**首选：装进 Octop 自带的 Python 虚拟环境（venv）**——与 Octop 运行环境一致、版本可控、不污染系统 Python、无需 sudo。Octop 角色的 Agent 命令执行时继承该环境。
 
 **定位 Octop venv**（通过 octop 主进程的工作目录）：
 

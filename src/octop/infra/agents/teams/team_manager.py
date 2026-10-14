@@ -1137,9 +1137,9 @@ def _is_team_system_prompt(text: str) -> bool:
     head = text.lstrip()
     return head.startswith(
         (
-            "[团队成员",
+            "[群聊成员",
             "[系统唤醒",
-            "[团队派工",
+            "[群聊派工",
             "[主持人调度",
             "[team member",
             "[system wake-up",

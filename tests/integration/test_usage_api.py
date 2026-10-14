@@ -253,12 +253,12 @@ async def test_user_export_xlsx(env: Any) -> None:
     wb = load_workbook(BytesIO(r.content))
     assert "明细" in wb.sheetnames
     assert "按天" in wb.sheetnames
-    assert "按专家" in wb.sheetnames
+    assert "按角色" in wb.sheetnames
     assert "按模型" in wb.sheetnames
     detail = wb["明细"]
     headers = [cell.value for cell in detail[1]]
-    assert "专家名称" in headers
-    name_col = headers.index("专家名称") + 1
+    assert "角色名称" in headers
+    name_col = headers.index("角色名称") + 1
     assert any(row[name_col - 1].value == "Export Expert" for row in detail.iter_rows(min_row=2))
     time_col = headers.index(next(h for h in headers if h and h.startswith("时间"))) + 1
     # TOTAL sits two rows below the last data row (blank spacer in between)
@@ -279,7 +279,7 @@ async def test_user_export_xlsx(env: Any) -> None:
         for v in time_vals
     )
     assert wb["按天"]._charts
-    assert wb["按专家"]._charts
+    assert wb["按角色"]._charts
     assert wb["按模型"]._charts
 
 

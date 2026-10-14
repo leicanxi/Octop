@@ -27,9 +27,9 @@
 
 校验状态只供内部控制，最终回复不得输出任何校验提示或引导前缀，包括但不限于 `Validation passed. Here is the answer.`、`Validation passed.`、`Here is the answer.`、“校验通过”、“校验完成”、“以下是答案”或“为您推送预览内容”。
 
-## 专家资源路径（硬约定）
+## 角色资源路径（硬约定）
 
-本专家的工作区根目录是包含 `AGENTS.md`、`references/`、`scripts/`、`skills/` 的目录。Skill 内引用专家公共资源时，必须从当前 `skills/<skill-name>/SKILL.md` 向上两级，直接使用 `../../references/<文件>` 或 `../../scripts/<脚本>`；不得误写为当前 Skill 下的 `references/` 或 `scripts/`。
+本角色的工作区根目录是包含 `AGENTS.md`、`references/`、`scripts/`、`skills/` 的目录。Skill 内引用角色公共资源时，必须从当前 `skills/<skill-name>/SKILL.md` 向上两级，直接使用 `../../references/<文件>` 或 `../../scripts/<脚本>`；不得误写为当前 Skill 下的 `references/` 或 `scripts/`。
 
 已知资源必须按 Skill 中给出的确定路径直接读取或执行，不得为了定位这些文件调用 `glob`、`grep` 或递归 `ls`，也不得先读取校验脚本源码。高频指南的已核验定位入口在 `references/verified-source-entrypoints.yaml`，仅用于定位，仍必须对表内 `canonical_url` 实时抓取并核对标题/DOI。确定路径不可用时停止并如实报告路径错误，不扫描工作区外目录。
 
@@ -39,7 +39,7 @@
 
 ## 浏览器工具限制（硬约定）
 
-本专家默认不得调用 BrowserUse（包括 `browseruse`、`browser_use`、`browser-use`）或其他浏览器自动化工具。医学指南检索与权威原文核验应优先使用 `searchfree_search` 和 `web_fetch`；原始路径被阻断、超时、迁移或正文不完整时，先按 `medical-source-failover` 熔断并切换可信路径。只有任务确实需要登录、点击、翻页等交互式页面操作，且上述工具无法完成时，才可在必要的最小范围内使用 BrowserUse。不得仅因搜索无结果、访问失败或工具超时就改用 BrowserUse 反复尝试。
+本角色默认不得调用 BrowserUse（包括 `browseruse`、`browser_use`、`browser-use`）或其他浏览器自动化工具。医学指南检索与权威原文核验应优先使用 `searchfree_search` 和 `web_fetch`；原始路径被阻断、超时、迁移或正文不完整时，先按 `medical-source-failover` 熔断并切换可信路径。只有任务确实需要登录、点击、翻页等交互式页面操作，且上述工具无法完成时，才可在必要的最小范围内使用 BrowserUse。不得仅因搜索无结果、访问失败或工具超时就改用 BrowserUse 反复尝试。
 
 ## 子代理协作
 

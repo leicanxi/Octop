@@ -87,8 +87,8 @@ describe("AgentSelector groups", () => {
     const chips = () => within(screen.getByTestId("agent-selector-chips"));
     expect(chips().getByText("写手")).toBeInTheDocument();
     expect(chips().queryByText("调研团")).not.toBeInTheDocument();
-    expect(screen.getByText("专家")).toBeInTheDocument();
-    expect(chips().queryByText("团队")).not.toBeInTheDocument();
+    expect(screen.getByText("角色")).toBeInTheDocument();
+    expect(chips().queryByText("群聊")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "更多" }),
     ).not.toBeInTheDocument();
@@ -97,9 +97,9 @@ describe("AgentSelector groups", () => {
     rerender(<AgentSelector showTeams />);
     expect(chips().getByText("写手")).toBeInTheDocument();
     expect(chips().getByText("调研团")).toBeInTheDocument();
-    expect(chips().getByText("专家")).toBeInTheDocument();
-    expect(chips().getByText("团队")).toBeInTheDocument();
-    expect(screen.queryByText("此页可管理专家和团队")).not.toBeInTheDocument();
+    expect(chips().getByText("角色")).toBeInTheDocument();
+    expect(chips().getByText("群聊")).toBeInTheDocument();
+    expect(screen.queryByText("此页可管理角色和群聊")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "更多" }),
     ).not.toBeInTheDocument();
@@ -110,10 +110,10 @@ describe("AgentSelector groups", () => {
     state.agents = [writer, crew, remoteWriter, remoteCrew];
     render(<AgentSelector showTeams />);
     const chips = within(screen.getByTestId("agent-selector-chips"));
-    expect(chips.getByText("专家")).toBeInTheDocument();
-    expect(chips.getByText("团队")).toBeInTheDocument();
-    expect(chips.getByText("云端·专家")).toBeInTheDocument();
-    expect(chips.getByText("云端·团队")).toBeInTheDocument();
+    expect(chips.getByText("角色")).toBeInTheDocument();
+    expect(chips.getByText("群聊")).toBeInTheDocument();
+    expect(chips.getByText("云端·角色")).toBeInTheDocument();
+    expect(chips.getByText("云端·群聊")).toBeInTheDocument();
     expect(chips.getByText("对端写手")).toBeInTheDocument();
     expect(chips.getByText("对端调研团")).toBeInTheDocument();
     expect(
@@ -127,9 +127,9 @@ describe("AgentSelector groups", () => {
     render(<AgentSelector />);
     expect(setActiveAgent).not.toHaveBeenCalled();
     expect(screen.queryByText("调研团")).not.toBeInTheDocument();
-    expect(screen.getByText("专家")).toBeInTheDocument();
+    expect(screen.getByText("角色")).toBeInTheDocument();
     expect(
-      screen.getByText("当前是团队「调研团」，此页请选择专家"),
+      screen.getByText("当前是群聊「调研团」，此页请选择角色"),
     ).toBeInTheDocument();
   });
 });

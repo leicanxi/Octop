@@ -107,7 +107,7 @@ def test_skillhub_manifest_welcome_keeps_chinese_when_summary_is_english() -> No
 
     assert "Cover tarot" not in manifest["welcome_message"]["zh"]
     assert "…" not in manifest["welcome_message"]["zh"]
-    assert manifest["welcome_message"]["zh"] == "提供专业、可落地的专家工作流支持"
+    assert manifest["welcome_message"]["zh"] == "提供专业、可落地的角色工作流支持"
     assert manifest["welcome_message"]["en"] == "Practical tarot draws with classic spreads"
 
     from octop.infra.agents.experts.skillhub_market import (
@@ -128,7 +128,7 @@ def test_skillhub_manifest_welcome_keeps_chinese_when_summary_is_english() -> No
 
     assert manifest["id"] == "skillhub-skillset-tech-test-automation"
     assert manifest["prompt_files"] == ["SOUL.md"]
-    assert manifest["label"]["zh"] == "技术测试自动化专家"
+    assert manifest["label"]["zh"] == "技术测试自动化角色"
     assert manifest["label"]["en"] == "Tech Test Automation Expert"
     assert len(manifest["quick_prompts"]) == 6
     assert manifest["quick_prompts"][0]["title"]["zh"]
@@ -177,7 +177,7 @@ def test_skillhub_manifest_generates_workflow_quick_prompts() -> None:
     assert manifest["quick_prompts"][0]["description"]["zh"] == "生成标准分镜表格和拍摄计划"
     prompt = manifest["quick_prompts"][0]["prompt"]["zh"]
     assert prompt == (
-        "请作为「分镜设计专家」，帮我完成「剧本到分镜表格转换」。\n我的情况/目标/材料是：\n"
+        "请作为「分镜设计角色」，帮我完成「剧本到分镜表格转换」。\n我的情况/目标/材料是：\n"
     )
     assert "按以下方式引导我" not in prompt
     assert "将剧本文本解析为结构化分镜表格" not in prompt
@@ -236,7 +236,7 @@ def test_skillhub_manifest_defaults_task_examples_without_workflow() -> None:
 
     assert len(examples["zh"]) == 3
     assert len(examples["en"]) == 3
-    assert "技术测试自动化专家" in examples["zh"][0]
+    assert "技术测试自动化角色" in examples["zh"][0]
     assert "09:00" in examples["zh"][0]
     assert "任务创建后立即启用" in examples["zh"][0]
     assert "Tech Test Automation Expert" in examples["en"][0]

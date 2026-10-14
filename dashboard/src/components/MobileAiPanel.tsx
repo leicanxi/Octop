@@ -142,7 +142,7 @@ export default function MobileAiPanel({
       <div className={styles.contextSection}>
         <div className={styles.expertSelectRow}>
           <span className={styles.contextLabel}>
-            {t("remoteAndroid.ai.expert", "专家")}
+            {t("remoteAndroid.ai.expert", "角色")}
           </span>
           <AgentSelector variant="select" showLabel={false} />
         </div>

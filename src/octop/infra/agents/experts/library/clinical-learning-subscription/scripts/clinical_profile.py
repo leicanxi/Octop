@@ -161,7 +161,7 @@ DEFAULT_STATE: dict[str, Any] = {
         "purpose": "仅用于用户明确启用的个性化指南学习、学习诊断摘要、专业指南更新提醒和地区医保政策变化学习。",
         "minimization": (
             "只保存称谓、地区、医院、科室、职称及用户明确要求保存的最小学习配置；"
-            "可信投递账本和通道回执由平台服务保存，不放在专家工作区；"
+            "可信投递账本和通道回执由平台服务保存，不放在角色工作区；"
             "不保存普通通用任务内容、课程正文、原始答题或患者信息。"
         ),
         "deletion_status": "未申请删除",
@@ -880,7 +880,7 @@ def create_learning_track(
     if not confirm:
         raise ValueError("创建学习轨道必须显式确认")
     if kind != "guideline":
-        raise ValueError("当前专家包只允许 guideline 类型学习轨道")
+        raise ValueError("当前角色包只允许 guideline 类型学习轨道")
     cleaned_label = _require_clean("指南名称", label)
     cleaned_publisher = _require_clean("发布机构", publisher)
     cleaned_version = _require_clean("指南版本", version)
@@ -1464,7 +1464,7 @@ def _reclaim_delivery(
 def _platform_delivery_lifecycle_unavailable() -> None:
     raise RuntimeError(
         "正式投递账本和通道回执必须由平台受鉴权的 outbox 服务持有；"
-        "专家工作区中的脚本不提供领取、发送、失败或送达确认能力。"
+        "角色工作区中的脚本不提供领取、发送、失败或送达确认能力。"
     )
 
 

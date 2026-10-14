@@ -433,7 +433,7 @@ def normalize_manifest_assets(
                     "en": _clip(f"Continue {idx + 1}", _MAX_TITLE_CHARS),
                 },
                 "description": {
-                    "zh": "补充目标与材料，继续专家工作流",
+                    "zh": "补充目标与材料，继续角色工作流",
                     "en": "Add context and continue the workflow",
                 },
                 "prompt": {
@@ -510,7 +510,7 @@ def _frontmatter_text(value: Any) -> str:
 def _fallback_label_zh(item: Any) -> str:
     name = str(getattr(item, "display_name", "") or getattr(item, "slug", "") or "").strip()
     if not name:
-        return "专家"
+        return "角色"
     return _ensure_zh_expert_label(name)
 
 
@@ -530,9 +530,12 @@ def _title_from_slug(slug: str) -> str:
 
 def _ensure_zh_expert_label(name: str) -> str:
     text = name.strip()
-    if not text:
-        return "专家"
-    return text if text.endswith("专家") else f"{text}专家"
+    # SkillHub display names may still carry the legacy 「专家」 suffix.
+    for suffix in ("角色", "专家"):
+        if text.endswith(suffix):
+            text = text[: -len(suffix)]
+            break
+    return f"{text}角色" if text else "角色"
 
 
 def _ensure_en_expert_label(name: str) -> str:
@@ -626,10 +629,10 @@ def _capability_welcome_fallback_zh(description_zh: str) -> str:
     line = _clip_welcome(
         description_zh,
         _MAX_WELCOME_CHARS_ZH,
-        fallback="提供专业、可落地的专家工作流支持",
+        fallback="提供专业、可落地的角色工作流支持",
         require_chinese=True,
     )
-    return line or "提供专业、可落地的专家工作流支持"
+    return line or "提供专业、可落地的角色工作流支持"
 
 
 def _capability_welcome_fallback_en(description_en: str) -> str:

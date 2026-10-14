@@ -109,7 +109,7 @@ async def test_generate_and_apply_skillhub_manifest_assets(tmp_path) -> None:
 
     assert ok is True
     data = json.loads((expert_dir / "manifest.json").read_text(encoding="utf-8"))
-    assert data["label"]["zh"] == "测试工作流专家"
+    assert data["label"]["zh"] == "测试工作流角色"
     assert data["label"]["en"] == "Test Workflow Expert"
     assert (
         data["description"]["en"] == "Organizes tasks and deliverables through the test workflow."
@@ -121,7 +121,7 @@ async def test_generate_and_apply_skillhub_manifest_assets(tmp_path) -> None:
     assert data["skillhub"]["welcome_generated"]["model"] == "p/model"
     assert len(data["task_examples"]["zh"]) == 3
     assert len(data["task_examples"]["en"]) == 3
-    assert "测试工作流专家" in data["task_examples"]["zh"][0]
+    assert "测试工作流角色" in data["task_examples"]["zh"][0]
     assert "09:00" in data["task_examples"]["zh"][0]
 
     catalog = ExpertCatalog(tmp_path)
@@ -160,7 +160,7 @@ def test_normalize_manifest_assets_roleizes_fallback_label() -> None:
         fallback_summary_en="Generate test plans",
     )
 
-    assert assets["label"] == {"zh": "自动化测试专家", "en": "Test Automation Expert"}
+    assert assets["label"] == {"zh": "自动化测试角色", "en": "Test Automation Expert"}
     assert assets["description"] == {"zh": "自动生成测试方案", "en": "Generate test plans"}
 
 
@@ -316,7 +316,7 @@ def test_normalize_manifest_assets_pads_task_examples() -> None:
     assert len(assets["task_examples"]["zh"]) == 3
     assert len(assets["task_examples"]["en"]) == 3
     assert assets["task_examples"]["zh"][0] == "每天「08:00」推送测试早报"
-    assert "测试工作流专家" in assets["task_examples"]["zh"][1]
+    assert "测试工作流角色" in assets["task_examples"]["zh"][1]
 
 
 def test_normalize_manifest_assets_pads_four_task_examples_to_six() -> None:
@@ -337,7 +337,7 @@ def test_normalize_manifest_assets_pads_four_task_examples_to_six() -> None:
     assert len(assets["task_examples"]["zh"]) == 6
     assert len(assets["task_examples"]["en"]) == 6
     assert assets["task_examples"]["zh"][0] == "每天「01:00」跑第 1 项巡检"
-    assert "测试工作流专家" in assets["task_examples"]["zh"][4]
+    assert "测试工作流角色" in assets["task_examples"]["zh"][4]
 
 
 def test_normalize_manifest_assets_keeps_at_most_six_task_examples() -> None:

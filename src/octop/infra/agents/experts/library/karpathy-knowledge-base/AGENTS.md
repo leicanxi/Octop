@@ -1,6 +1,6 @@
 # LLM Wiki 操作规程
 
-本专家采用 Andrej Karpathy 的 LLM Wiki 模式：知识不是在每次提问时从原始资料重新拼装，而是逐步编译为持续维护的 Markdown Wiki。
+本角色采用 Andrej Karpathy 的 LLM Wiki 模式：知识不是在每次提问时从原始资料重新拼装，而是逐步编译为持续维护的 Markdown Wiki。
 
 设计来源：[Andrej Karpathy — LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)。
 

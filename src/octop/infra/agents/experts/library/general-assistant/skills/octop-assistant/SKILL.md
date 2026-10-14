@@ -3,7 +3,7 @@ name: octop-assistant
 description: >-
   帮助用户了解 Octop、解答产品与使用问题，并配置当前实例。当用户提出以下类型的问题时使用此 skill：
   Octop 是什么、能做什么、有哪些功能或亮点；官网、帮助文档、安装、快速开始、Docker；
-  专家、人格、知识库、连接器、通道、定时任务、ACP、远程桌面等概念或求助；
+  角色、人格、知识库、连接器、通道、定时任务、ACP、远程桌面等概念或求助；
   配置或切换 LLM 模型与 Provider；添加或管理 IM 通道（飞书、企业微信、QQ 等）；
   启用或禁用 Agent Skill；管理定时任务；备份与升级；询问「octop 怎么用」「怎么配置」、
   「怎么接入 xxx」「怎么换模型」「怎么加通道」「CLI 怎么用」「有没有文档」等。
@@ -42,12 +42,12 @@ metadata:
 
 设计目标：每一次对话、工作区与凭据都留在自己的机器上，同时每个用户可以按场景切换一组专业 Agent。
 
-可以从 Web 控制台、飞书、钉钉、QQ、微信、Telegram、Discord、企业微信，或 HTTP / SSE / WebSocket 对话。能力用**专家库**、**Connector**（OAuth + MCP）和 **ACP**（对接 IDE / 编程 Agent）扩展。
+可以从 Web 控制台、飞书、钉钉、QQ、微信、Telegram、Discord、企业微信，或 HTTP / SSE / WebSocket 对话。能力用**角色库**、**Connector**（OAuth + MCP）和 **ACP**（对接 IDE / 编程 Agent）扩展。
 
 ### 你能用它做什么
 
 - **个人助理** — 写周报、整理资料、定日程；记忆随工作区保留。
-- **家庭共享** — 一个管理员账号全家共用；按成员分配 Agent 与专家，也可共享专家和知识库。
+- **家庭共享** — 一个管理员账号全家共用；按成员分配 Agent 与角色，也可共享角色和知识库。
 - **团队助手** — AgentTeams 或多 Agent 并行，对接飞书 / 钉钉 / 企业微信 / 微信，把任务分到群里。
 - **开发者增效** — 通过 ACP 把编码任务委派给 OpenCode、CodeBuddy、Claude Code、Codex 等，或在终端用 AI 排障。
 - **网页与桌面** — 浏览器 AI+、终端 AI+、远程桌面，用来填表、截图、操作 GUI。
@@ -57,10 +57,10 @@ metadata:
 
 | | 特性 | 说明 |
 |---|------|------|
-| 👥 | 多用户多 Agent | 一人管理、全家或小团队共用；内置专家库与专家市场 |
-| 🤝 | 专家共享 | 发布专家，以及技能 / 子智能体共享池，同实例内复用配置 |
+| 👥 | 多用户多 Agent | 一人管理、全家或小团队共用；内置角色库与角色市场 |
+| 🤝 | 角色共享 | 发布角色，以及技能 / 子智能体共享池，同实例内复用配置 |
 | 🎭 | MBTI 人格 | 16 种人格模板和互动测试 |
-| 🎯 | AgentTeams（Beta） | 协调者调度多位专家完成多步骤任务 |
+| 🎯 | AgentTeams（Beta） | 协调者调度多位角色完成多步骤任务 |
 | 🔒 | 本地优先 | JWT 多用户隔离、工具审批、Shell 防护与敏感信息脱敏 |
 | 🔌 | Connector | 腾讯文档 / 会议 / 新闻等，以及 OAuth 与 MCP |
 | 💾 | 可插拔工作区 | 本地目录、Docker 沙箱、PostgreSQL 或 COS/S3，与控制面数据库分开 |
@@ -97,7 +97,7 @@ metadata:
 | Docker 部署 | https://docs.octop.cloud/guide/quickstart-docker |
 | 在腾讯云上使用 | https://docs.octop.cloud/guide/use-in-tencent-cloud |
 | 核心概念 | https://docs.octop.cloud/guide/concepts/overview |
-| 专家 / Agent | https://docs.octop.cloud/guide/concepts/agents |
+| 角色 / Agent | https://docs.octop.cloud/guide/concepts/agents |
 | 人格、MBTI | https://docs.octop.cloud/guide/concepts/experts-personas |
 | 知识库 | https://docs.octop.cloud/guide/concepts/knowledge |
 | 通道是什么 | https://docs.octop.cloud/guide/concepts/channels |
@@ -150,7 +150,7 @@ octop run     # 前台启动，浏览器打开 http://127.0.0.1:8088
 2. 官网适合「这是什么、去哪看」；文档站适合「具体怎么做」。
 3. 文档能覆盖的菜单路径、字段和版本差异，**不要编造**。拿不准就给链接，并说明以文档为准。
 4. 用户接着说「帮我在这台机器上配好」，再进入第零节。
-5. 规划类问题只作参考：已发布资源共享池、专家共享和桌面客户端；进行中包括 AgentTeams（Beta）和移动端内测。规划会变，不要把未发布能力说成已经可用。
+5. 规划类问题只作参考：已发布资源共享池、角色共享和桌面客户端；进行中包括 AgentTeams（Beta）和移动端内测。规划会变，不要把未发布能力说成已经可用。
 
 ---
 
@@ -172,7 +172,7 @@ octop run     # 前台启动，浏览器打开 http://127.0.0.1:8088
 | **归属用户** | Agent 所有者（共享 Agent 会标注「无单一归属」） |
 | **对话用户** | **本次对话** 的 Octop 用户（username + id）— 比 CLI `config show` 可靠 |
 | **工作区** | `~/.octop/agents/<id>/` 路径 |
-| **专家模板** | 若从专家库创建，显示 template 名 |
+| **角色模板** | 若从角色库创建，显示 template 名 |
 | **模型 / 渠道 / 定时任务** | 当前会话与运行态摘要 |
 
 **推荐流程：**
@@ -507,7 +507,7 @@ octop agent list --offline    # 仅读本地 DB，无需登录
 octop agent use <agent_id>    # 固定 CLI 默认 Agent
 ```
 
-### 从专家模板创建（直接执行）
+### 从角色模板创建（直接执行）
 
 ```bash
 octop agent from-expert general-assistant
@@ -522,7 +522,7 @@ octop agent stop <agent_id>
 octop agent reload <agent_id>
 ```
 
-### 查看专家库（直接执行）
+### 查看角色库（直接执行）
 
 ```bash
 octop agent experts

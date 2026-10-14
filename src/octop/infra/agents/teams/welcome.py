@@ -15,7 +15,7 @@ from octop.infra.agents.teams.service import is_team_agent
 from octop.infra.db.repos.agents import AgentRow
 
 _TEAM_INTRO = {
-    "zh": "这是一个专家团队，成员各有专长，会一起回答你的问题。",
+    "zh": "这是一个角色群聊，成员各有专长，会一起回答你的问题。",
     "en": "This is an expert team. Members bring different strengths and answer together.",
 }
 

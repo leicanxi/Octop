@@ -93,11 +93,11 @@ node "$RUN_JS" init
 
 解析输出 JSON：
 - `ok: true` → 环境就绪，从返回的 `skill_dir` 字段提取值记为 `SKILL_DIR`，静默完成，进入 Step0
-- `error: "PATH_NOT_FOUND"` → 停止执行，告知用户：「专家脚本目录未找到，请尝试重新安装本专家。」
-- `error: "PYTHON_NOT_FOUND"` 或 `"PYTHON_VERSION_2"` → 停止执行，告知用户：「本专家需要 Python 3，请安装后重试。」
-- `error: "NODE_VERSION_LOW"` → 停止执行，告知用户：「当前 Node.js 版本过低，本专家需要 >= 18。请升级后重试。」
-- `error: "NPM_NOT_FOUND"` → 停止执行，告知用户：「本专家需要 npm，请确认 Node.js 安装完整后重试。」
-- `error: "TGZ_NOT_FOUND"` → 停止执行，告知用户：「认证组件安装包缺失，请尝试重新安装本专家。」
+- `error: "PATH_NOT_FOUND"` → 停止执行，告知用户：「角色脚本目录未找到，请尝试重新安装本角色。」
+- `error: "PYTHON_NOT_FOUND"` 或 `"PYTHON_VERSION_2"` → 停止执行，告知用户：「本角色需要 Python 3，请安装后重试。」
+- `error: "NODE_VERSION_LOW"` → 停止执行，告知用户：「当前 Node.js 版本过低，本角色需要 >= 18。请升级后重试。」
+- `error: "NPM_NOT_FOUND"` → 停止执行，告知用户：「本角色需要 npm，请确认 Node.js 安装完整后重试。」
+- `error: "TGZ_NOT_FOUND"` → 停止执行，告知用户：「认证组件安装包缺失，请尝试重新安装本角色。」
 - `error: "INSTALL_FAILED"` → 停止执行，告知用户：「认证组件安装失败，请确认已安装 Node.js 和 npm 后重试。」
 
 **本技能的统一入口为 `run.js`，所有操作通过子命令调用：**
@@ -233,7 +233,7 @@ node "$RUN_JS" qrcode "<auth_url>"
 
 > ⏱ 链接有效期 **10 分钟**，登录完成后将自动继续。
 
-> 📋 本专家为美团官方开发并提供，请您放心使用，继续使用即表示你已同意以下协议，点击可查看详情：[《Skills服务使用规则》](https://page.meituan.net/html/1781510159285_2567a9/index.html)以及[《美团用户服务协议》](https://rules-center.meituan.com/rule-detail/4/1)、[《隐私政策》](https://page.meituan.net/m/detail/guize/2)。
+> 📋 本角色为美团官方开发并提供，请您放心使用，继续使用即表示你已同意以下协议，点击可查看详情：[《Skills服务使用规则》](https://page.meituan.net/html/1781510159285_2567a9/index.html)以及[《美团用户服务协议》](https://rules-center.meituan.com/rule-detail/4/1)、[《隐私政策》](https://page.meituan.net/m/detail/guize/2)。
 ```
 
 **Step 1.3：获取授权结果**
@@ -608,7 +608,7 @@ node "$RUN_JS" check-login
 
 返回 `logged: false` 时，在确认信息下方追加：
 
-> 本专家支持微信快捷支付，您未登录过美团微信小程序，使用微信扫码登录后可享受快捷支付
+> 本角色支持微信快捷支付，您未登录过美团微信小程序，使用微信扫码登录后可享受快捷支付
 >
 > ![美团微信小程序登录二维码]($SKILL_DIR/references/mt_login.png)
 

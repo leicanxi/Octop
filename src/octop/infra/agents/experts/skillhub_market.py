@@ -838,9 +838,12 @@ def _dedupe_frontmatter(text: str) -> str:
 
 def _expert_label_zh(item: SkillHubSkillset) -> str:
     name = (item.display_name or item.slug).strip()
-    if not name:
-        return "专家"
-    return name if name.endswith("专家") else f"{name}专家"
+    # SkillHub display names may still carry the legacy 「专家」 suffix.
+    for suffix in ("角色", "专家"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    return f"{name}角色" if name else "角色"
 
 
 def _expert_label_en(item: SkillHubSkillset) -> str:
@@ -912,7 +915,7 @@ def _expert_manifest(
         "welcome_message": {
             "zh": _capability_welcome_line(
                 item.summary,
-                fallback="提供专业、可落地的专家工作流支持",
+                fallback="提供专业、可落地的角色工作流支持",
                 max_chars=40,
                 require_chinese=True,
             ),
@@ -953,7 +956,7 @@ def _expert_soul(item: SkillHubSkillset, skill_slugs: list[str]) -> str:
 
 你是「{name}」，来源于 SkillHub skillset `{item.slug}`。
 
-## 专家定位
+## 角色定位
 
 {summary}
 

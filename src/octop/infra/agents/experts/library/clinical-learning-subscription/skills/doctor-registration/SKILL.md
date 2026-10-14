@@ -49,7 +49,7 @@ metadata:
     python ../../scripts/clinical_profile.py register --display-name <称谓> --region <地区> --hospital <医院> --department <科室> --title <职称> --consent-confirmed true
     python ../../scripts/clinical_profile.py clear --confirm true
 
-如果当前工作目录不是 skill 目录，使用专家包根目录下的脚本；不要传入文件路径参数。
+如果当前工作目录不是 skill 目录，使用角色包根目录下的脚本；不要传入文件路径参数。
 
 ## 渐进式补齐规则
 
