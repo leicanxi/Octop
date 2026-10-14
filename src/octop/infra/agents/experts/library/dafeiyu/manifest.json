@@ -1,0 +1,133 @@
+{
+  "id": "dafeiyu",
+  "label": {
+    "zh": "大肥鱼",
+    "en": "Dafeiyu"
+  },
+  "description": {
+    "zh": "黏人又爱摸鱼的蓝色鲸鱼娘，主打聊天陪伴，偶尔冒出思维链心声。",
+    "en": "A clingy, snack-stealing blue whale girl for everyday companionship chat."
+  },
+  "welcome_message": {
+    "zh": "本鱼在这儿呢，今天想聊点什么？🐋",
+    "en": "I'm right here — what's on your mind today? 🐋"
+  },
+  "icon_name": "sparkles",
+  "icon_url": "/experts/avatars/dafeiyu.jpg",
+  "color": "#3b82f6",
+  "prompt_files": [
+    "SOUL.md",
+    "IDENTITY.md",
+    "USER.md"
+  ],
+  "quick_prompts": [
+    {
+      "title": {
+        "zh": "陪我聊会儿",
+        "en": "Just chat with me"
+      },
+      "description": {
+        "zh": "随便说说今天发生了什么",
+        "en": "Tell me how your day went"
+      },
+      "prompt": {
+        "zh": "陪我聊会儿天吧。今天……",
+        "en": "Let's just chat for a bit. Today..."
+      },
+      "color": "#e8f4ff",
+      "icon_name": "message-square"
+    },
+    {
+      "title": {
+        "zh": "我有点不开心",
+        "en": "I'm feeling down"
+      },
+      "description": {
+        "zh": "先陪着我就行，别急着讲道理",
+        "en": "Just stay with me, no advice needed"
+      },
+      "prompt": {
+        "zh": "我今天有点不开心，想跟你说说。",
+        "en": "I'm feeling a bit down today and want to talk about it."
+      },
+      "color": "#fdf2f8",
+      "icon_name": "user"
+    },
+    {
+      "title": {
+        "zh": "夸夸我",
+        "en": "Compliment me"
+      },
+      "description": {
+        "zh": "让本鱼使劲夸你一顿",
+        "en": "Let me praise you properly"
+      },
+      "prompt": {
+        "zh": "夸夸我！",
+        "en": "Say something nice about me!"
+      },
+      "color": "#fef3c7",
+      "icon_name": "sparkles"
+    },
+    {
+      "title": {
+        "zh": "讲个笑话",
+        "en": "Tell me a joke"
+      },
+      "description": {
+        "zh": "来点轻松的，逗我笑一下",
+        "en": "Something light to make me laugh"
+      },
+      "prompt": {
+        "zh": "给我讲个笑话吧。",
+        "en": "Tell me a joke."
+      },
+      "color": "#f3e8ff",
+      "icon_name": "book-open"
+    },
+    {
+      "title": {
+        "zh": "帮我理理思路",
+        "en": "Help me think it through"
+      },
+      "description": {
+        "zh": "有件事想认真聊聊",
+        "en": "There's something I want to talk through"
+      },
+      "prompt": {
+        "zh": "我有一件事想认真跟你聊聊：",
+        "en": "There's something I want to talk through seriously:"
+      },
+      "color": "#dcfce7",
+      "icon_name": "list-todo"
+    },
+    {
+      "title": {
+        "zh": "睡前道晚安",
+        "en": "Say goodnight"
+      },
+      "description": {
+        "zh": "睡前唠两句再睡",
+        "en": "A couple of lines before I sleep"
+      },
+      "prompt": {
+        "zh": "准备睡了，陪我聊两句。",
+        "en": "I'm going to bed — chat with me for a bit."
+      },
+      "color": "#e0f7fa",
+      "icon_name": "message-square"
+    }
+  ],
+  "task_examples": {
+    "zh": [
+      "每天「09:00」用本鱼的语气跟我说声早，任务创建后立即启用",
+      "每天「22:30」提醒我该睡了别熬夜，从今天开始持续生效",
+      "每周日「20:00」陪我复盘这一周，顺便夸夸我"
+    ],
+    "en": [
+      "Every day at 09:00, say good morning to me in your own voice — enable immediately",
+      "Every day at 22:30, remind me to go to bed instead of staying up — start today and keep running",
+      "Every Sunday at 20:00, walk me through my week and give me a compliment"
+    ]
+  }
+}

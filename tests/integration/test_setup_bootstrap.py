@@ -35,7 +35,7 @@ async def test_bootstrap_creates_default_main_agent(patched_app_client: Any) -> 
     agents = r.json()
     assert len(agents) == 1
     assert agents[0]["agent_id"] == "main"
-    assert agents[0]["name"] == "小通 · 通用助手"
+    assert agents[0]["name"] == "大肥鱼"
     assert agents[0]["state"] in {"created", "idle", "stopped", "failed", "running", "unknown"}
 
 
@@ -98,14 +98,15 @@ async def test_start_skips_wizard_password_when_disabled(tmp_octop_home: Path) -
         await srv.stop()
 
 
-async def test_main_agent_seeds_general_assistant_workspace(patched_app_client: Any) -> None:
+async def test_main_agent_seeds_default_expert_workspace(patched_app_client: Any) -> None:
     """Finish creates main with expert files even when no provider is configured yet."""
     c, _srv, home = patched_app_client
     await bootstrap_admin(c, home)
     ws = home / "agents" / "main"
     assert (ws / "SOUL.md").is_file()
-    # New agents use system_files_path=.octop — BackendWorkspace remaps skills/.
-    assert (ws / ".octop" / "skills" / "octop-assistant" / "SKILL.md").is_file()
+    assert (ws / "IDENTITY.md").is_file()
+    # Nested template files keep their relative path in the workspace.
+    assert (ws / "references" / "lines.md").is_file()
 
 
 async def test_main_agent_uses_fs_root_backend(patched_app_client: Any) -> None:
@@ -134,5 +135,5 @@ async def test_main_agent_uses_general_assistant_template(patched_app_client: An
     assert r.status_code == 200
     agent = r.json()[0]
     assert agent["agent_id"] == "main"
-    assert agent["name"] == "小通 · 通用助手"
-    assert agent.get("template_name") == "general-assistant"
+    assert agent["name"] == "大肥鱼"
+    assert agent.get("template_name") == "dafeiyu"

@@ -1,7 +1,8 @@
 {
   "id": "karpathy-knowledge-base",
+  "hidden": true,
   "label": {
-    "zh": "卡帕西知识库专家",
+    "zh": "卡帕西知识库角色",
     "en": "Karpathy Knowledge Base"
   },
   "description": {

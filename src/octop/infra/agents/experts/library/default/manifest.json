@@ -1,7 +1,8 @@
 {
   "id": "default",
+  "hidden": true,
   "label": {
-    "zh": "通用专家",
+    "zh": "通用角色",
     "en": "General Expert"
   },
   "description": {

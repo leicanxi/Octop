@@ -1,5 +1,6 @@
 {
   "id": "ai-coding-coach",
+  "hidden": true,
   "label": {
     "zh": "AI 编程实战导师",
     "en": "AI Coding Coach"

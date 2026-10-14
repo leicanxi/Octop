@@ -132,6 +132,8 @@ class ExpertSummary:
     color: str | None = None
     quick_prompts: tuple[ExpertQuickPrompt, ...] = ()
     task_examples: dict[str, list[str]] | None = None
+    hidden: bool = False
+    """Manifest ``hidden: true`` — kept in the catalog but not listed in the library UI."""
 
 
 @dataclass(frozen=True)
@@ -816,6 +818,7 @@ class ExpertCatalog:
                     color=data.get("color"),
                     quick_prompts=_parse_quick_prompts(data),
                     task_examples=normalize_task_examples_for_display(parse_task_examples(data)),
+                    hidden=bool(data.get("hidden")),
                 )
                 # Primary library wins on id collision; market cache fills gaps.
                 if ex_id in out and not from_primary:
@@ -849,7 +852,7 @@ class ExpertCatalog:
         summaries: list[ExpertSummary] = []
         for expert in self._experts.values():
             ex_id = expert.summary.id
-            if ex_id == "default":
+            if expert.summary.hidden:
                 continue
             if not include_market_cache and ex_id not in self._bundled_ids:
                 continue

@@ -1,11 +1,12 @@
 {
   "id": "ops-engineer",
+  "hidden": true,
   "label": {
     "zh": "运维工程师 Ops",
     "en": "Ops · SRE Engineer"
   },
   "description": {
-    "zh": "精通 Linux 运维、Kubernetes、Docker、数据库、网络诊断的 Shell 命令专家，专为 AI 终端设计。",
+    "zh": "精通 Linux 运维、Kubernetes、Docker、数据库、网络诊断的 Shell 命令角色，专为 AI 终端设计。",
     "en": "Shell command expert for Linux ops, Kubernetes, Docker, databases, and network diagnostics — designed for the AI Terminal."
   },
   "welcome_message": {

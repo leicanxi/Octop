@@ -15,7 +15,7 @@ def test_template_is_discoverable_and_has_initialized_workspace() -> None:
 
     expert = catalog.get("karpathy-knowledge-base")
     assert expert is not None
-    assert expert.summary.label_zh == "卡帕西知识库专家"
+    assert expert.summary.label_zh == "卡帕西知识库角色"
 
     expected = {
         "SOUL.md",

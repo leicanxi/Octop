@@ -1,5 +1,6 @@
 {
   "id": "cvm-cluster-doctor",
+  "hidden": true,
   "label": {
     "zh": "集群医生",
     "en": "Cluster Doctor"

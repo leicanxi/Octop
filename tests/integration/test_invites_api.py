@@ -57,7 +57,7 @@ async def test_invite_create_list_redeem_and_one_time(env) -> None:
     assert me.status_code == 200
     assert me.json()["username"] == "bob_invitee"
 
-    # Same default expert as setup wizard (general-assistant), not pinned to ``main``.
+    # Same default expert as setup wizard (dafeiyu), not pinned to ``main``.
     agents = await c.get(
         "/api/agents",
         headers={"Authorization": f"Bearer {body['access_token']}"},
@@ -65,7 +65,7 @@ async def test_invite_create_list_redeem_and_one_time(env) -> None:
     assert agents.status_code == 200, agents.text
     bob_agents = agents.json()
     assert len(bob_agents) == 1
-    assert bob_agents[0]["template_name"] == "general-assistant"
+    assert bob_agents[0]["template_name"] == "dafeiyu"
     assert bob_agents[0]["agent_id"] != "main"
     assert srv.app_runtime is not None
     bob_row = srv.app_runtime.agent_registry.get_row(bob_agents[0]["agent_id"])

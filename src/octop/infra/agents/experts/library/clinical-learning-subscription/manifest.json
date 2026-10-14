@@ -1,5 +1,6 @@
 {
   "id": "clinical-learning-subscription",
+  "hidden": true,
   "label": {
     "zh": "基层医生学习小助手",
     "en": "Primary Care Doctor Learning Assistant"

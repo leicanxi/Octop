@@ -1,4 +1,4 @@
-"""Bootstrap a first default agent (general-assistant) for a user.
+"""Bootstrap a first default agent (dafeiyu) for a user.
 
 Used by the setup wizard (pinned ``agent_id=main``) and by invite redeem
 (auto-allocated agent id) so every new account starts with the same expert.
@@ -20,7 +20,7 @@ from octop.infra.utils.locale import normalize_locale
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EXPERT_ID = "general-assistant"
+DEFAULT_EXPERT_ID = "dafeiyu"
 SETUP_DEFAULT_AGENT_ID = "main"
 
 
@@ -54,7 +54,7 @@ async def bootstrap_default_agent(
     agent_id: str | None = None,
     root_dir: str | None = None,
 ) -> Any | None:
-    """Create ``general-assistant`` for *user_id* when they have no agents yet.
+    """Create ``dafeiyu`` for *user_id* when they have no agents yet.
 
     Returns the created agent row, or ``None`` when skipped (user already has
     agents, or ``main`` already exists when *agent_id* is ``main``).
