@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { pluginPanelTabId } from "../../../plugins/toolRenderers/panelRegistry";
 import { dockFileTabId } from "../utils/dockFilePath";
 import { dockKnowledgeTabId } from "../utils/dockKnowledgeTabId";
 import { ensureNoTrajectoryTab, useChatDockPanel } from "./useChatDockPanel";
@@ -144,6 +145,40 @@ describe("useChatDockPanel tabs", () => {
       "browser",
       "terminal",
     ]);
+  });
+
+  it("openPanelTab dedupes by plugin+panel and focuses the panel tab", () => {
+    const { result } = renderHook(() => useChatDockPanel(false, "main"));
+    act(() => {
+      result.current.openPanelTab("phone", "phone");
+    });
+    expect(result.current.dockOpen).toBe(true);
+    expect(result.current.activeTabId).toBe(pluginPanelTabId("phone", "phone"));
+    expect(result.current.openTabs).toEqual([
+      {
+        id: pluginPanelTabId("phone", "phone"),
+        kind: "panel",
+        pluginId: "phone",
+        panelId: "phone",
+      },
+    ]);
+    act(() => {
+      result.current.openPanelTab("phone", "phone");
+    });
+    expect(result.current.openTabs).toHaveLength(1);
+  });
+
+  it("togglePluginPanel opens the panel then closes dock when active", () => {
+    const { result } = renderHook(() => useChatDockPanel(false, "main"));
+    act(() => {
+      result.current.togglePluginPanel("phone", "phone");
+    });
+    expect(result.current.dockOpen).toBe(true);
+    expect(result.current.activeTabId).toBe(pluginPanelTabId("phone", "phone"));
+    act(() => {
+      result.current.togglePluginPanel("phone", "phone");
+    });
+    expect(result.current.dockOpen).toBe(false);
   });
 
   it("closeTab can close the files list tab", () => {

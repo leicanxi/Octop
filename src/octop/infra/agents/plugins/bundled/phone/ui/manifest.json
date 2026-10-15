@@ -1,0 +1,15 @@
+{
+  "renderers": [
+    {
+      "id": "phone_card",
+      "tools": ["show_phone"]
+    }
+  ],
+  "panels": [
+    {
+      "id": "phone",
+      "renderer": "phone_card",
+      "title": "小手机"
+    }
+  ]
+}

@@ -40,6 +40,15 @@ import ChatDockFileList from "./ChatDockFileList";
 import FilePanelContent from "./FilePanelContent";
 import KnowledgeCitationPanelContent from "./KnowledgeCitationPanelContent";
 import ChatDockToolUiContent from "./ChatDockToolUiContent";
+import PluginPanelContent from "../../../plugins/toolRenderers/PluginPanel";
+import {
+  findPluginPanel,
+  parsePluginPanelTabId,
+  pluginPanelTabId,
+  pluginPanelTitle,
+  type PluginPanelRegistration,
+} from "../../../plugins/toolRenderers/panelRegistry";
+import { PluginIconView } from "../../Admin/Plugins/PluginIconView";
 
 const TerminalPage = lazy(() => import("../../Control/Terminal"));
 
@@ -50,6 +59,9 @@ export type ChatDockAddTabHandlers = {
   onOpenFiles?: () => void;
   workspaceDisabled?: boolean;
   workspaceDisabledHint?: string;
+  /** Persistent panels declared by installed plugins. */
+  panels?: PluginPanelRegistration[];
+  onOpenPanel?: (pluginId: string, panelId: string) => void;
 };
 
 type AddTabKey = "workspace" | "files" | "browser" | "terminal";
@@ -136,11 +148,27 @@ const DockAddTabButton: React.FC<{
         extra: check("terminal"),
       });
     }
+    for (const panel of addTab.panels ?? []) {
+      const tabId = pluginPanelTabId(panel.pluginId, panel.id);
+      next.push({
+        key: tabId,
+        label: pluginPanelTitle(panel, t),
+        icon: <PluginIconView icon={panel.icon} size={14} />,
+        extra: openTabs.some((tab) => tab.id === tabId) ? (
+          <Check size={14} />
+        ) : undefined,
+      });
+    }
     return next;
   }, [addTab, openTabs, t]);
 
   const onClick = useCallback<NonNullable<MenuProps["onClick"]>>(
     ({ key }) => {
+      const panel = parsePluginPanelTabId(key);
+      if (panel) {
+        addTab.onOpenPanel?.(panel.pluginId, panel.panelId);
+        return;
+      }
       const openers: Record<AddTabKey, (() => void) | undefined> = {
         workspace: addTab.onOpenWorkspace,
         files: addTab.onOpenFiles,
@@ -226,6 +254,9 @@ const ChatDockPanel: React.FC<ChatDockPanelProps> = ({
   const [mountedKnowledgeTabs, setMountedKnowledgeTabs] = useState<
     Extract<DockTab, { kind: "knowledge" }>[]
   >(() => openTabs.filter((tab) => tab.kind === "knowledge"));
+  const [mountedPanelTabs, setMountedPanelTabs] = useState<
+    Extract<DockTab, { kind: "panel" }>[]
+  >(() => openTabs.filter((tab) => tab.kind === "panel"));
   const [mountedToolUiCallIds, setMountedToolUiCallIds] = useState<string[]>(
     () =>
       openTabs.filter((tab) => tab.kind === "toolUi").map((tab) => tab.callId),
@@ -270,6 +301,14 @@ const ChatDockPanel: React.FC<ChatDockPanelProps> = ({
     const openToolUiCallIds = new Set(
       openTabs.filter((tab) => tab.kind === "toolUi").map((tab) => tab.callId),
     );
+    const openPanelById = new Map(
+      openTabs
+        .filter(
+          (tab): tab is Extract<DockTab, { kind: "panel" }> =>
+            tab.kind === "panel",
+        )
+        .map((tab) => [tab.id, tab]),
+    );
     setMountedFileTabs((prev) => {
       const next = prev
         .filter((tab) => openFileById.has(tab.id))
@@ -304,6 +343,20 @@ const ChatDockPanel: React.FC<ChatDockPanelProps> = ({
       for (const callId of openToolUiCallIds) {
         if (!next.includes(callId)) {
           next.push(callId);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setMountedPanelTabs((prev) => {
+      const next = prev
+        .filter((tab) => openPanelById.has(tab.id))
+        .map((tab) => openPanelById.get(tab.id) ?? tab);
+      let changed =
+        next.length !== prev.length || next.some((tab, i) => tab !== prev[i]);
+      for (const tab of openPanelById.values()) {
+        if (!next.some((row) => row.id === tab.id)) {
+          next.push(tab);
           changed = true;
         }
       }
@@ -386,6 +439,11 @@ const ChatDockPanel: React.FC<ChatDockPanelProps> = ({
     openTabs.find((tab) => tab.id === activeTabId) ?? openTabs[0] ?? null;
   const terminalVisible = surfaceVisible && activeTab?.kind === "terminal";
 
+  const panelLabel = (tab: Extract<DockTab, { kind: "panel" }>): string => {
+    const panel = findPluginPanel(tab.pluginId, tab.panelId);
+    return panel ? pluginPanelTitle(panel, t) : tab.panelId;
+  };
+
   const tabBar = (
     <div className={styles.dockTabBar}>
       <div className={styles.dockTabs} role="tablist">
@@ -427,6 +485,14 @@ const ChatDockPanel: React.FC<ChatDockPanelProps> = ({
                 <span title={tab.citation.filename}>
                   {tab.citation.filename || t("chat.citationPreview")}
                 </span>
+              </>
+            ) : tab.kind === "panel" ? (
+              <>
+                <PluginIconView
+                  icon={findPluginPanel(tab.pluginId, tab.panelId)?.icon}
+                  size={16}
+                />
+                <span>{panelLabel(tab)}</span>
               </>
             ) : (
               <>
@@ -577,6 +643,25 @@ const ChatDockPanel: React.FC<ChatDockPanelProps> = ({
               <KnowledgeCitationPanelContent
                 citation={tab.citation}
                 onActionsChange={getKnowledgeActionsHandler(tab.id)}
+              />
+            </div>
+          );
+        })}
+
+        {mountedPanelTabs.map((tab) => {
+          const isActive =
+            activeTab?.kind === "panel" && activeTab.id === tab.id;
+          return (
+            <div
+              key={tab.id}
+              className={styles.dockTabBody}
+              hidden={!isActive}
+              style={{ display: isActive ? "flex" : "none" }}
+            >
+              <PluginPanelContent
+                pluginId={tab.pluginId}
+                panelId={tab.panelId}
+                agentId={agentId}
               />
             </div>
           );

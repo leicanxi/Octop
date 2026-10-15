@@ -12,6 +12,13 @@ import path from "path";
  */
 export default defineConfig({
   plugins: [react()],
+  // Bundled plugin UIs (``src/octop/infra/agents/plugins/bundled/*/ui/``) live
+  // outside this package; tests import their source directly.
+  server: {
+    fs: {
+      allow: [path.resolve(__dirname, "..")],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

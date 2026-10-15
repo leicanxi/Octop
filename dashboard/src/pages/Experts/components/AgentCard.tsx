@@ -24,6 +24,14 @@ import MemoryCatalogDrawer from "./MemoryCatalogDrawer";
 import MbtiCatalogDrawer from "./MbtiCatalogDrawer";
 import ToolCatalogDrawer from "./ToolCatalogDrawer";
 import PluginCatalogDrawer from "./PluginCatalogDrawer";
+import CatalogDrawer from "./CatalogDrawer";
+import PluginPanelContent from "../../../plugins/toolRenderers/PluginPanel";
+import { usePluginPanels } from "../../../plugins/toolRenderers/usePluginPanels";
+import {
+  pluginPanelTitle,
+  type PluginPanelRegistration,
+} from "../../../plugins/toolRenderers/panelRegistry";
+import { PluginIconView } from "../../Admin/Plugins/PluginIconView";
 import { request } from "../../../api/request";
 import type { OctopAgent } from "../../../context/AgentContext";
 import { useAgent } from "../../../context/AgentContext";
@@ -110,6 +118,10 @@ export const AgentCard = memo(function AgentCard({
   const [channelCatalogOpen, setChannelCatalogOpen] = useState(false);
   const [memoryCatalogOpen, setMemoryCatalogOpen] = useState(false);
   const [mbtiCatalogOpen, setMbtiCatalogOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState<PluginPanelRegistration | null>(
+    null,
+  );
+  const panels = usePluginPanels();
   const [installedSubagentSlugs, setInstalledSubagentSlugs] = useState<
     Set<string>
   >(() => new Set());
@@ -442,6 +454,27 @@ export const AgentCard = memo(function AgentCard({
                 </button>
               </Tooltip>
 
+              {panels.map((panel) => {
+                const label = pluginPanelTitle(panel, t);
+                return (
+                  <Tooltip
+                    key={`${panel.pluginId}:${panel.id}`}
+                    title={label}
+                    mouseEnterDelay={0.5}
+                  >
+                    <button
+                      type="button"
+                      className={styles.agentCard2EditBtn}
+                      disabled={!chatReady}
+                      onClick={() => setOpenPanel(panel)}
+                      aria-label={label}
+                    >
+                      <PluginIconView icon={panel.icon} size={13} />
+                    </button>
+                  </Tooltip>
+                );
+              })}
+
               <Tooltip title={t("experts.reloadAgent")} mouseEnterDelay={0.5}>
                 <button
                   type="button"
@@ -586,6 +619,21 @@ export const AgentCard = memo(function AgentCard({
           void refreshAgents({ silent: true, force: true });
         }}
       />
+      {openPanel ? (
+        <CatalogDrawer
+          title={pluginPanelTitle(openPanel, t)}
+          open
+          onClose={() => setOpenPanel(null)}
+          width="min(460px, 92vw)"
+          agentId={agent.agent_id}
+        >
+          <PluginPanelContent
+            pluginId={openPanel.pluginId}
+            panelId={openPanel.id}
+            agentId={agent.agent_id}
+          />
+        </CatalogDrawer>
+      ) : null}
     </>
   );
 });

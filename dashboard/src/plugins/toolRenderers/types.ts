@@ -80,9 +80,26 @@ export interface PluginUiModule {
   default?: { setup?: (host: OctopPluginUIHost) => void };
 }
 
+/**
+ * A persistent panel declared by a plugin's ``ui/manifest.json``.
+ *
+ * Unlike a tool renderer (which only appears next to a tool call in the
+ * message stream), a panel gets a permanent entry in the chat dock, the chat
+ * toolbar and the agent card, and renders ``renderer`` without any tool call.
+ */
+export interface PluginPanelDeclaration {
+  /** Plugin-local panel id (also the tab id suffix). */
+  id: string;
+  /** Renderer id registered by the plugin's ``setup(host)``. */
+  renderer: string;
+  /** Plugin-provided label; the Dashboard i18n key ``chat.panel.<id>`` wins. */
+  title?: string;
+}
+
 export interface PluginUiManifest {
   renderers?: Array<{
     id: string;
     tools?: string[];
   }>;
+  panels?: PluginPanelDeclaration[];
 }

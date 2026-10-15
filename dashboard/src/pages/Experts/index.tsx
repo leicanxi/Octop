@@ -63,6 +63,7 @@ import { OctopEmptyMascot } from "../../components/EmptyState";
 import { pickLocale } from "../../utils/localizedText";
 import { isOwnedExpert, ownedExperts } from "../../utils/sharedExpert";
 import { apiErrorMessage } from "../../utils/apiError";
+import { usePluginToolUis } from "../../plugins/toolRenderers";
 import styles from "./index.module.less";
 
 type TabKey = "my" | "teams" | "library" | "market";
@@ -114,6 +115,9 @@ export default function ExpertsPage() {
   const isMobile = useIsMobile();
   const { agents, refresh: refreshAgents } = useAgent();
   const currentUser = useCurrentUser();
+  // Plugin panels (agent cards render an entry per declared panel); the chat
+  // page loads them too, but the card grid must not depend on that visit.
+  usePluginToolUis({});
 
   const canManagePublished = useCallback(
     (expert: PublishedExpert) =>

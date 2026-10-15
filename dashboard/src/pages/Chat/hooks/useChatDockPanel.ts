@@ -9,6 +9,7 @@ import {
 import type { KnowledgeCitation } from "../../../utils/parseKnowledgeCitations";
 import { dockKnowledgeTabId } from "../utils/dockKnowledgeTabId";
 import { dockToolUiTabId } from "../utils/dockToolUiTabId";
+import { pluginPanelTabId } from "../../../plugins/toolRenderers/panelRegistry";
 import { usePanelResize, type PanelSizes } from "./usePanelResize";
 
 const PANEL_MODE_KEY = "octop:chat-dock:mode";
@@ -36,6 +37,12 @@ export type DockTab =
       callId: string;
       title?: string;
       toolName?: string;
+    }
+  | {
+      id: string;
+      kind: "panel";
+      pluginId: string;
+      panelId: string;
     };
 
 export type DockTabId = DockTab["id"];
@@ -225,6 +232,19 @@ export function useChatDockPanel(isMobile: boolean, agentId?: string | null) {
     openDock();
   }, [openDock]);
 
+  const openPanelTab = useCallback(
+    (pluginId: string, panelId: string) => {
+      const id = pluginPanelTabId(pluginId, panelId);
+      setOpenTabs((prev) => {
+        if (prev.some((t) => t.id === id)) return prev;
+        return [...prev, { id, kind: "panel", pluginId, panelId }];
+      });
+      setActiveTabId(id);
+      openDock();
+    },
+    [openDock],
+  );
+
   const openKnowledgeCitation = useCallback(
     (citation: KnowledgeCitation) => {
       const kbId = citation.kbId?.trim();
@@ -280,7 +300,12 @@ export function useChatDockPanel(isMobile: boolean, agentId?: string | null) {
 
   /** Toggle dock open/closed around a dedicated tab. */
   const toggleDockTab = useCallback(
-    (tab: Extract<DockTab, { kind: "browser" | "terminal" | "workspace" }>) => {
+    (
+      tab: Extract<
+        DockTab,
+        { kind: "browser" | "terminal" | "workspace" | "panel" }
+      >,
+    ) => {
       setDockOpen((prevOpen) => {
         if (prevOpen && activeTabId === tab.id) {
           return false;
@@ -310,6 +335,18 @@ export function useChatDockPanel(isMobile: boolean, agentId?: string | null) {
   const toggleTerminalPanel = useCallback(() => {
     toggleDockTab({ id: "terminal", kind: "terminal" });
   }, [toggleDockTab]);
+
+  const togglePluginPanel = useCallback(
+    (pluginId: string, panelId: string) => {
+      toggleDockTab({
+        id: pluginPanelTabId(pluginId, panelId),
+        kind: "panel",
+        pluginId,
+        panelId,
+      });
+    },
+    [toggleDockTab],
+  );
 
   const closeTab = useCallback((id: DockTabId) => {
     setOpenTabs((prev) => {
@@ -374,6 +411,8 @@ export function useChatDockPanel(isMobile: boolean, agentId?: string | null) {
     toggleBrowserPanel,
     openTerminalTab,
     toggleTerminalPanel,
+    openPanelTab,
+    togglePluginPanel,
     openToolUiTab,
     focusToolUiTab,
     closeTab,
