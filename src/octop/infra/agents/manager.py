@@ -3059,9 +3059,34 @@ class AgentManager:
         tool_configs = collect_plugin_tool_configs(
             plugins_cfg if isinstance(plugins_cfg, dict) else None
         )
+        configurable = dict(req.get("configurable") or {})
+        changed = False
         if tool_configs:
-            configurable = dict(req.get("configurable") or {})
             configurable["plugin_tool_configs"] = tool_configs
+            changed = True
+        user_id = configurable.get("user")
+        if isinstance(user_id, str) and user_id.isdigit():
+            user_id = int(user_id)
+        if isinstance(user_id, int) and user_id > 0:
+            from octop.infra.agents.providers.user_credentials import (  # noqa: PLC0415
+                plugin_credential_payload,
+            )
+
+            # Internal tool context only: plugins may call the user's own
+            # OpenAI-compatible endpoint. Never echo this into prompts or logs.
+            try:
+                credential_payload = plugin_credential_payload(
+                    self._repos.user_model_credential_repo,
+                    self._repos.secret_repo,
+                    user_id,
+                )
+            except Exception:
+                logger.warning("plugin credential lookup failed", exc_info=True)
+                credential_payload = None
+            if credential_payload is not None:
+                configurable["plugin_user_credential"] = credential_payload
+                changed = True
+        if changed:
             req["configurable"] = configurable
         return apply_agent_runtime_to_stream_request(req, agent_cfg)
 
