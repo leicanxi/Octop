@@ -61,3 +61,21 @@ def load_user_credentials(
     if not row.base_url and not api_key:
         return None
     return UserModelCredential(base_url=row.base_url, api_key=api_key)
+
+
+def plugin_credential_payload(
+    credential_repo: UserModelCredentialRepo,
+    secret_repo: SecretRepo,
+    user_id: int,
+) -> dict[str, str] | None:
+    """Return the acting user's credential for plugin tools (never shared keys).
+
+    Plugins that call a user-billed endpoint (for example the ``sing-song``
+    model on new-api) read this from the run's internal tool context. It is
+    intentionally unavailable when the user has no API key so a missing key
+    fails loudly instead of charging the operator's shared account.
+    """
+    credential = load_user_credentials(credential_repo, secret_repo, user_id)
+    if credential is None or not credential.api_key:
+        return None
+    return {"base_url": credential.base_url or "", "api_key": credential.api_key}

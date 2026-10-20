@@ -1,0 +1,10 @@
+{
+  "keine": {
+    "label": "Keine",
+    "url": "https://huggingface.co/leicanxi/rvc-models/resolve/main/keine_genso_flat.zip"
+  },
+  "cirno": {
+    "label": "Cirno",
+    "url": "https://huggingface.co/Sergeantzero/Touhou_Project/resolve/main/Cirno%20%28Touhou%20Cannonball%29.zip"
+  }
+}
