@@ -1616,6 +1616,10 @@
     "dockFileMaybeDeleted": "This file may have been a temporary artifact during processing and has already been deleted.",
     "remoteBrowserTitle": "Remote Browser",
     "dockTerminalTitle": "Terminal",
+    "panel": {
+      "phone": "Mini Phone"
+    },
+    "panelUnavailable": "This panel's plugin is not loaded. Make sure it is installed and enabled.",
     "trajectoryTitle": "Trajectory",
     "trajectoryEmpty": "No trajectory events yet",
     "trajectorySelectSession": "Select a session to view trajectory",

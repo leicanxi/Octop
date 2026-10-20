@@ -1,0 +1,11 @@
+id: phone
+version: 0.3.0
+name: 小手机
+description: 给角色一部自己的手机，在聊天或常驻面板里查看它的短信、通话、相册、微信与朋友圈
+icon: icon.svg
+group: fun
+kind: tool
+entry: main.py
+ui:
+  entry: ui/index.js
+  manifest: ui/manifest.json

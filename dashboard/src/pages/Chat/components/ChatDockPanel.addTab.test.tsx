@@ -1,7 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ChatDockPanel from "./ChatDockPanel";
+import {
+  clearPluginPanels,
+  registerPluginPanel,
+} from "../../../plugins/toolRenderers/panelRegistry";
+
+afterEach(() => {
+  clearPluginPanels();
+});
 
 vi.mock("../../../hooks/useCurrentUser", () => ({
   useCurrentUser: () => ({ id: 1 }),
@@ -48,6 +56,10 @@ vi.mock("./KnowledgeCitationPanelContent", () => ({
 
 vi.mock("./ChatDockToolUiContent", () => ({
   default: () => <div data-testid="tool-ui" />,
+}));
+
+vi.mock("../../../plugins/toolRenderers/PluginPanel", () => ({
+  default: () => <div data-testid="plugin-panel" />,
 }));
 
 vi.mock("../../Control/Terminal", () => ({
@@ -133,5 +145,58 @@ describe("ChatDockPanel add-tab menu", () => {
     const item = await screen.findByText("工作区");
     await user.click(item);
     expect(onOpenWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("lists declared plugin panels in the + menu and opens them", async () => {
+    const user = userEvent.setup();
+    const onOpenPanel = vi.fn();
+
+    render(
+      <ChatDockPanel
+        {...baseProps}
+        addTab={{
+          panels: [
+            {
+              pluginId: "phone",
+              id: "phone",
+              renderer: "phone_card",
+              title: "小手机",
+            },
+          ],
+          onOpenPanel,
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "添加面板" }));
+    await user.click(await screen.findByText("小手机"));
+    expect(onOpenPanel).toHaveBeenCalledWith("phone", "phone");
+  });
+
+  it("labels a plugin panel tab and mounts its body", () => {
+    // The tab label resolves through the panel registry (the canonical store).
+    registerPluginPanel({
+      pluginId: "phone",
+      id: "phone",
+      renderer: "phone_card",
+      title: "小手机",
+    });
+    render(
+      <ChatDockPanel
+        {...baseProps}
+        openTabs={[
+          {
+            id: "panel:phone:phone",
+            kind: "panel",
+            pluginId: "phone",
+            panelId: "phone",
+          },
+        ]}
+        activeTabId="panel:phone:phone"
+      />,
+    );
+
+    expect(screen.getByText("小手机")).toBeTruthy();
+    expect(screen.getByTestId("plugin-panel")).toBeTruthy();
   });
 });

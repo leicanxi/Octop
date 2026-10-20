@@ -110,6 +110,9 @@ import {
   usePluginToolUis,
   setPluginUiDockHandlers,
 } from "../../plugins/toolRenderers";
+import { usePluginPanels } from "../../plugins/toolRenderers/usePluginPanels";
+import { pluginPanelTitle } from "../../plugins/toolRenderers/panelRegistry";
+import { PluginIconView } from "../Admin/Plugins/PluginIconView";
 import styles from "./index.module.less";
 
 export default function ChatPage() {
@@ -129,6 +132,7 @@ function ChatPageInner() {
     agentId: routeAgentId ?? null,
     threadId: threadId ?? null,
   });
+  const panels = usePluginPanels();
   const isMobile = useIsMobile();
   const hitlEnabled = useHitlEnabled();
   const user = useCurrentUser();
@@ -410,9 +414,11 @@ function ChatPageInner() {
     openWorkspaceTab,
     openBrowserTab,
     openTerminalTab,
+    openPanelTab,
     toggleBrowserPanel,
     toggleWorkspacePanel,
     toggleTerminalPanel,
+    togglePluginPanel,
     openToolUiTab,
     focusToolUiTab,
     closeTab: closeDockTab,
@@ -499,14 +505,20 @@ function ChatPageInner() {
     if (canTerminal) {
       handlers.onOpenTerminal = openTerminalTab;
     }
+    if (!sharedExpertViewer && panels.length) {
+      handlers.panels = panels;
+      handlers.onOpenPanel = openPanelTab;
+    }
     return handlers;
   }, [
     agentChatReady,
     canTerminal,
     handleOpenBrowserTab,
     openFileList,
+    openPanelTab,
     openTerminalTab,
     openWorkspaceTab,
+    panels,
     sharedExpertViewer,
     t,
   ]);
@@ -1311,6 +1323,23 @@ function ChatPageInner() {
                     >
                       <Globe size={18} strokeWidth={1.8} />
                     </button>
+                    {panels.map((panel) => {
+                      const label = pluginPanelTitle(panel, t);
+                      return (
+                        <button
+                          key={`${panel.pluginId}:${panel.id}`}
+                          className={styles.menuBtn}
+                          onClick={() =>
+                            togglePluginPanel(panel.pluginId, panel.id)
+                          }
+                          disabled={!agentChatReady}
+                          title={label}
+                          aria-label={label}
+                        >
+                          <PluginIconView icon={panel.icon} size={18} />
+                        </button>
+                      );
+                    })}
                     {!sharedExpertViewer && panelFilePaths.length > 0 && (
                       <button
                         className={styles.menuBtn}
@@ -1613,6 +1642,31 @@ function ChatPageInner() {
                       </button>
                     </span>
                   </Tooltip>
+                  {panels.map((panel) => {
+                    const label = pluginPanelTitle(panel, t);
+                    return (
+                      <Tooltip
+                        key={`${panel.pluginId}:${panel.id}`}
+                        title={label}
+                        mouseEnterDelay={0.35}
+                        placement="left"
+                      >
+                        <span className={styles.chatFloatBtnWrap}>
+                          <button
+                            type="button"
+                            className={styles.chatFloatBtn}
+                            disabled={!agentChatReady}
+                            onClick={() =>
+                              togglePluginPanel(panel.pluginId, panel.id)
+                            }
+                            aria-label={label}
+                          >
+                            <PluginIconView icon={panel.icon} size={20} />
+                          </button>
+                        </span>
+                      </Tooltip>
+                    );
+                  })}
                 </div>
               )}
 
