@@ -52,9 +52,30 @@ uv run uvicorn octop.api.gateway.sing:app --host 127.0.0.1 --port 9001
 | `SING_PITCH` | `2` | Default semitone shift |
 | `SING_START` | `60` | Default clip start (seconds) |
 | `SING_DURATION` | `25` | Default clip length (5–30) |
+| `SING_MUSIC_SOURCE` | `bilibili` | Music source for search/download: `bilibili` or `netease` (payload `"source"` overrides per request) |
 | `SING_CACHE_TTL_HOURS` | `168` | Disk cache TTL |
 | `SING_CACHE_MAX_ENTRIES` | `50` | Disk cache entries |
 | `SING_VOICES_FILE` | `~/.octop/sing-voices.json` | Admin-managed voice whitelist |
+| `SING_BILI_COOKIES` | — | Path to a Netscape `cookies.txt` for Bilibili (see HTTP 412 below) |
+| `SING_PROXY` | — | Optional proxy (`http://host:port`) for Bilibili search/download |
+
+### Bilibili HTTP 412
+
+Bilibili risk-controls datacenter IPs: on a cloud VPS every request — search
+included — can fail with `HTTP Error 412 Precondition Failed` regardless of
+headers.
+
+**Easiest fix on an overseas host: set `SING_MUSIC_SOURCE=netease`.** NetEase's
+anonymous APIs (plain search JSON + direct mp3 links for free songs) work from
+datacenter IPs and need no cookies; VIP-only songs fail with an explicit
+"needs VIP" error, so pick free tracks.
+
+The Bilibili-specific alternatives: export cookies from a logged-in account
+while visiting bilibili.com (browser extension such as "Get cookies.txt
+LOCALLY"), place the file on the gateway host, and set `SING_BILI_COOKIES` to
+its path. The file is re-read on every download, so refreshing an expired
+cookie file takes effect without a restart. Alternatively set `SING_PROXY` to
+route music traffic through a different exit node.
 
 ## Voice whitelist
 
@@ -113,14 +134,44 @@ then `~/.octop/sing-voices.json` (handy for local development).
    - Base URL: `http://<octop-host>:9001/v1`
    - Key: the same value as `SING_GATEWAY_TOKEN`
 2. Add model `sing-song` to the channel.
-3. Set the model price to **per-call billing** (`QuotaType=1`). With the
+3. Add model `sing-voices` to the channel too and price it at **0**: clients
+   use it to pull the voice whitelist through new-api (see
+   [Voice catalog](#voice-catalog)). It never runs a generation; the gateway
+   only returns the catalog.
+4. Set the `sing-song` price to **per-call billing** (`QuotaType=1`). With the
    1:1 RMB/USD convention, `0.7` per call covers the worst-case cold start
    (about $0.08 of T4 time) with a healthy margin.
-4. Raise the relay timeout to **at least 300 seconds**: a warm generation is
-   about 70 seconds and a cold start can take 2–4 minutes.
+5. Raise the relay timeout to **at least 300 seconds**: a warm generation is
+   about 70 seconds and a cold start can take 2–4 minutes. Current new-api
+   builds have no UI field for this — set env `RELAY_TIMEOUT=300` on the
+   new-api container instead.
 
 The gateway returns a standard chat completion whose assistant content is a
 JSON audio block. `usage` is zero because billing is per-call.
+
+## Voice catalog
+
+Clients offer voice selection by name, so they need the current whitelist:
+
+- Direct gateway access: `GET /v1/voices` with the gateway token returns
+  `{"data": [{"id": ..., "label": ...}], "note": ...}`.
+- Behind new-api: unknown paths like `GET /v1/voices` are not relayed. Post
+  `/v1/chat/completions` with `"model": "sing-voices"` instead (include a
+  dummy user message — new-api rejects empty `messages` lists before
+  forwarding). The assistant content is a voices block:
+
+  ```json
+  {
+    "type": "voices",
+    "voices": [{"name": "keine", "label": "Keine"}],
+    "note": "自定义 RVC 音色需要管理员审核后加入白名单；用户不能直接传链接。"
+  }
+  ```
+
+Both read the whitelist file on every call, so an updated `SING_VOICES_FILE`
+shows up on the next pull without restarting anything. Keep `sing-voices`
+priced at 0 on new-api — the response `usage` is all zeros, so the call is
+free either way.
 
 ## Configure the Octop plugin
 
@@ -141,7 +192,12 @@ config.
 
 ## AstrBot / other clients
 
-Any client with an OpenAI-compatible provider can use the same model:
+Ready-made AstrBot plugin:
+[`leicanxi/deepseek-sing-astrbot`](https://github.com/leicanxi/deepseek-sing-astrbot)
+(config page supports FlowBee and self-hosted modes, voice list pull, and a
+self-managed whitelist file).
+
+Any client with an OpenAI-compatible provider can use the same model directly:
 
 - Base URL: `https://flowbee.top/v1`
 - Model: `sing-song`

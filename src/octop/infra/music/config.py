@@ -10,6 +10,7 @@ DEFAULT_VOICE_URL = "https://huggingface.co/leicanxi/rvc-models/resolve/main/kei
 DEFAULT_REPLICATE_BASE = "https://api.replicate.com/v1"
 DEFAULT_MODEL = "zsxkib/realistic-voice-cloning"
 PITCH_MODES = frozenset({"no-change", "male-to-female", "female-to-male"})
+MUSIC_SOURCES = frozenset({"bilibili", "netease"})
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class SingConfig:
     pitch_mode: str = "no-change"
     start: int = 60
     duration: int = 25
+    music_source: str = "bilibili"
     index_rate: float = 0.75
     filter_radius: int = 3
     rms_mix_rate: float = 0.25

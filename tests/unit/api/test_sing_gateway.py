@@ -24,7 +24,8 @@ def test_lists_sing_song_model(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SING_GATEWAY_TOKEN", "secret")
     response = _client().get("/v1/models", headers={"Authorization": "Bearer secret"})
     assert response.status_code == 200
-    assert response.json()["data"][0]["id"] == "sing-song"
+    ids = [item["id"] for item in response.json()["data"]]
+    assert ids == ["sing-song", "sing-voices"]
 
 
 def test_lists_voices(monkeypatch: MonkeyPatch, tmp_path) -> None:
@@ -117,3 +118,36 @@ def test_plain_song_content(monkeypatch: MonkeyPatch) -> None:
     )
     assert response.status_code == 200
     assert captured["song"] == "雨爱"
+
+
+def test_voices_model_returns_catalog_without_rendering(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    monkeypatch.setenv("SING_GATEWAY_TOKEN", "secret")
+    path = tmp_path / "voices.json"
+    path.write_text(json.dumps({"keine": "https://example.com/keine.zip"}), encoding="utf-8")
+    monkeypatch.setenv("SING_VOICES_FILE", str(path))
+
+    def fail_render(payload: dict[str, object]) -> dict[str, object]:
+        raise AssertionError("voices model must not render")
+
+    monkeypatch.setattr(sing, "_render", fail_render)
+    response = _client().post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret"},
+        json={"model": "sing-voices", "messages": []},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["model"] == "sing-voices"
+    assert body["usage"] == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    content = json.loads(body["choices"][0]["message"]["content"])
+    assert content["type"] == "voices"
+    assert content["voices"] == [{"name": "keine", "label": "keine"}]
+    assert "管理员审核" in content["note"]
+
+
+def test_music_source_env_and_payload(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SING_MUSIC_SOURCE", "netease")
+    assert sing._config({}).music_source == "netease"
+    assert sing._config({"source": "bilibili"}).music_source == "bilibili"
+    monkeypatch.delenv("SING_MUSIC_SOURCE")
+    assert sing._config({}).music_source == "bilibili"

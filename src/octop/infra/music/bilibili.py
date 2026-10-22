@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -81,12 +82,18 @@ def candidate_rows(rows: Any, limit: int) -> list[SongCandidate]:
     return (clean or fallback)[:limit]
 
 
+def _proxy() -> str | None:
+    return os.environ.get("SING_PROXY", "").strip() or None
+
+
 def search_bilibili(query: str, limit: int = 3) -> list[SongCandidate]:
     """Search Bilibili's web API and return up to *limit* usable candidates."""
     query = (query or "").strip()
     if not query:
         return []
-    with httpx.Client(timeout=20.0, headers=HEADERS, follow_redirects=True) as client:
+    with httpx.Client(
+        timeout=20.0, headers=HEADERS, follow_redirects=True, proxy=_proxy()
+    ) as client:
         response = client.get(
             SEARCH_URL,
             params={"search_type": "video", "keyword": query, "page": 1},
@@ -101,10 +108,8 @@ def search_bilibili(query: str, limit: int = 3) -> list[SongCandidate]:
     return candidate_rows(data.get("result"), limit)
 
 
-def download_audio(url: str, workdir: Path) -> tuple[Path, str, float]:
-    """Download the best audio stream for *url* into *workdir*."""
-    import yt_dlp
-
+def _download_options(workdir: Path) -> dict[str, Any]:
+    """yt-dlp options; optional cookies/proxy help datacenter IPs pass risk control."""
     options: dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": str(workdir / "source.%(ext)s"),
@@ -113,7 +118,22 @@ def download_audio(url: str, workdir: Path) -> tuple[Path, str, float]:
         "noplaylist": True,
         "socket_timeout": 30,
     }
-    with yt_dlp.YoutubeDL(options) as downloader:
+    cookies = os.environ.get("SING_BILI_COOKIES", "").strip()
+    if cookies:
+        if not Path(cookies).is_file():
+            raise RuntimeError(f"SING_BILI_COOKIES file not found: {cookies}")
+        options["cookies"] = cookies
+    proxy = _proxy()
+    if proxy:
+        options["proxy"] = proxy
+    return options
+
+
+def download_audio(url: str, workdir: Path) -> tuple[Path, str, float]:
+    """Download the best audio stream for *url* into *workdir*."""
+    import yt_dlp
+
+    with yt_dlp.YoutubeDL(_download_options(workdir)) as downloader:
         info = downloader.extract_info(url, download=True) or {}
         path = Path(downloader.prepare_filename(info))
     if not path.is_file():

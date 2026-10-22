@@ -35,6 +35,8 @@ from octop.infra.music import (
 app = FastAPI(title="Octop Sing Gateway", version="0.1.0")
 
 _DEFAULT_MODEL = "sing-song"
+_VOICES_MODEL = "sing-voices"
+_VOICES_NOTE = "自定义 RVC 音色需要管理员审核后加入白名单；用户不能直接传链接。"
 
 
 class ChatMessage(BaseModel):
@@ -137,6 +139,9 @@ def _config(payload: dict[str, Any]) -> SingConfig:
             minimum=5,
             maximum=30,
         ),
+        music_source=str(
+            payload.get("source") or os.environ.get("SING_MUSIC_SOURCE", "") or "bilibili"
+        ).strip(),
         cache_ttl_hours=_as_float(
             os.environ.get("SING_CACHE_TTL_HOURS"), 168.0, minimum=0.0, maximum=8760.0
         ),
@@ -170,11 +175,12 @@ def list_models() -> dict[str, Any]:
         "object": "list",
         "data": [
             {
-                "id": _DEFAULT_MODEL,
+                "id": model,
                 "object": "model",
                 "created": 0,
                 "owned_by": "octop",
             }
+            for model in (_DEFAULT_MODEL, _VOICES_MODEL)
         ],
     }
 
@@ -184,24 +190,36 @@ def list_voices() -> dict[str, Any]:
     return {
         "object": "list",
         "data": [{"id": item["name"], "label": item["label"]} for item in voice_catalog()],
-        "note": "自定义 RVC 音色需要管理员审核后加入白名单；用户不能直接传链接。",
+        "note": _VOICES_NOTE,
+    }
+
+
+def _voices_block() -> dict[str, Any]:
+    return {
+        "type": "voices",
+        "voices": voice_catalog(),
+        "note": _VOICES_NOTE,
     }
 
 
 @app.post("/v1/chat/completions", dependencies=[Depends(_require_token)])
 async def chat_completions(body: ChatCompletionRequest) -> dict[str, Any]:
-    payload = _request_payload(body)
-    try:
-        block = await asyncio.to_thread(_render, payload)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    model = (body.model or _DEFAULT_MODEL).strip()
+    if model == _VOICES_MODEL:
+        block: dict[str, Any] = _voices_block()
+    else:
+        payload = _request_payload(body)
+        try:
+            block = await asyncio.to_thread(_render, payload)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {
         "id": f"chatcmpl-sing-{uuid.uuid4().hex}",
         "object": "chat.completion",
         "created": int(time.time()),
-        "model": body.model or _DEFAULT_MODEL,
+        "model": model,
         "choices": [
             {
                 "index": 0,
