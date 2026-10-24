@@ -8,6 +8,7 @@ import pytest
 from pytest import MonkeyPatch
 
 from octop.infra.music import netease
+from octop.infra.music.config import ClientSongError
 
 
 def test_song_url_recognition_and_id() -> None:
@@ -63,5 +64,5 @@ def test_search_netease_parses_songs(monkeypatch: MonkeyPatch) -> None:
 def test_download_vip_error(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     payload = {"code": 200, "data": [{"id": 1, "url": None, "code": 404}]}
     monkeypatch.setattr(netease.httpx, "Client", lambda **kwargs: _FakeClient(payload))
-    with pytest.raises(RuntimeError, match="VIP"):
+    with pytest.raises(ClientSongError, match="VIP"):
         netease.download_audio("https://music.163.com/song?id=1", tmp_path)

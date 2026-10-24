@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from octop.infra.music.config import SongCandidate
+from octop.infra.music.config import ClientSongError, SongCandidate
 
 SEARCH_URL = "https://music.163.com/api/search/get"
 PLAYER_URL = "https://music.163.com/api/song/enhance/player/url"
@@ -102,7 +102,7 @@ def download_audio(url: str, workdir: Path) -> tuple[Path, str, float]:
         )
         direct = str(row.get("url") or "").strip()
         if not direct:
-            raise RuntimeError(
+            raise ClientSongError(
                 "网易云没有返回音频直链：该歌曲可能需要 VIP/数字专辑，或接口被风控，请换一首免费歌曲"
             )
         raw_ms = row.get("time")

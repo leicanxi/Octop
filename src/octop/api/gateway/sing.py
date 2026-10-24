@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from octop.infra.music import (
     DEFAULT_REPLICATE_BASE,
+    ClientSongError,
     SingConfig,
     render_song,
     render_song_by_query,
@@ -213,6 +214,10 @@ async def chat_completions(body: ChatCompletionRequest) -> dict[str, Any]:
             block = await asyncio.to_thread(_render, payload)
         except HTTPException:
             raise
+        except ClientSongError as exc:
+            # Song-level problems (VIP track, no results): 4xx so relays such as
+            # new-api pass the message through instead of retrying the channel.
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {

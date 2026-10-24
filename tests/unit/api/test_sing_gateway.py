@@ -151,3 +151,19 @@ def test_music_source_env_and_payload(monkeypatch: MonkeyPatch) -> None:
     assert sing._config({"source": "bilibili"}).music_source == "bilibili"
     monkeypatch.delenv("SING_MUSIC_SOURCE")
     assert sing._config({}).music_source == "bilibili"
+
+
+def test_client_song_error_maps_to_400(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SING_GATEWAY_TOKEN", "secret")
+
+    def fail_render(payload: dict[str, object]) -> dict[str, object]:
+        raise sing.ClientSongError("网易云没有返回音频直链：该歌曲可能需要 VIP")
+
+    monkeypatch.setattr(sing, "_render", fail_render)
+    response = _client().post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret"},
+        json={"model": "sing-song", "messages": [{"role": "user", "content": "晴天"}]},
+    )
+    assert response.status_code == 400
+    assert "VIP" in response.json()["detail"]

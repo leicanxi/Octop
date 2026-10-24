@@ -13,6 +13,10 @@ PITCH_MODES = frozenset({"no-change", "male-to-female", "female-to-male"})
 MUSIC_SOURCES = frozenset({"bilibili", "netease"})
 
 
+class ClientSongError(RuntimeError):
+    """A song-level problem the caller can fix (VIP track, no search results)."""
+
+
 @dataclass(frozen=True)
 class SongCandidate:
     """One Bilibili search result the agent can show or sing."""

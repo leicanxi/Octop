@@ -13,6 +13,7 @@ from octop.infra.music import bilibili, cache, media, netease, replicate
 from octop.infra.music.config import (
     MUSIC_SOURCES,
     PITCH_MODES,
+    ClientSongError,
     SingConfig,
     SingResult,
     SongCandidate,
@@ -111,5 +112,5 @@ def render_song_by_query(song: str, cfg: SingConfig) -> SingResult:
     """Search for *song* and generate the first usable result."""
     candidates = search_songs(song, 1, cfg.music_source)
     if not candidates:
-        raise RuntimeError(f"no song found for {song!r}")
+        raise ClientSongError(f"no song found for {song!r}")
     return render_song(candidates[0].url, cfg)

@@ -208,6 +208,12 @@ or plain text (`雨爱`). Plain text is treated as the song name.
 
 ## Notes
 
+- Song-level failures — a NetEase VIP track with no anonymous audio link, or a
+  query that finds nothing — return HTTP **400** with the reason, not 502.
+  Relays like new-api treat 4xx as non-retryable and pass the message to the
+  user; a 502 would burn channel retries and end in a misleading
+  "no channel available" error.
+
 - Returned audio URLs are Replicate delivery URLs (public), so QQ can fetch
   them directly. Cache hits re-upload the cached mp3 to Replicate Files.
 - Cache hits still count as one new-api call unless you create a separate
