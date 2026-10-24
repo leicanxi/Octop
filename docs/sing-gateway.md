@@ -239,7 +239,9 @@ or plain text (`雨爱`). Plain text is treated as the song name.
   "no channel available" error.
 
 - Returned audio URLs are Replicate delivery URLs (public), so QQ can fetch
-  them directly. Cache hits re-upload the cached mp3 to Replicate Files.
+  them directly. Cache hits return the original public delivery URL stored in
+  the cache entry (validated with a HEAD request; stale or pre-upgrade entries
+  regenerate once and refresh the stored URL).
 - Cache hits still count as one new-api call unless you create a separate
   lower-priced model for them.
 - Keep `sing-song` at or above 0.7 per call under the 1:1 convention; typical

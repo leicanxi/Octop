@@ -9,6 +9,8 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
+import httpx
+
 from octop.infra.music import bilibili, cache, media, netease, replicate
 from octop.infra.music.config import (
     MUSIC_SOURCES,
@@ -47,6 +49,20 @@ def _resolve_token(cfg: SingConfig) -> str:
     return token
 
 
+def _url_reachable(url: str, timeout: float = 10.0) -> bool:
+    """Check that a cached public audio URL still serves before returning it."""
+    try:
+        with httpx.Client(
+            timeout=timeout, follow_redirects=True, headers={"Range": "bytes=0-0"}
+        ) as client:
+            response = client.head(url)
+            if response.status_code in (405, 501):
+                response = client.get(url)
+            return response.status_code < 400
+    except Exception:
+        return False
+
+
 def search_songs(query: str, limit: int = 3, source: str = "bilibili") -> list[SongCandidate]:
     """Search the configured music source and return up to ``limit`` candidates."""
     limit = max(1, min(5, int(limit)))
@@ -69,14 +85,16 @@ def render_song(url: str, cfg: SingConfig) -> SingResult:
     cached = cache.cache_lookup(root, key, cfg.cache_ttl_hours)
     if cached is not None:
         audio, meta = cached
-        try:
-            audio_url = replicate.upload_file(base_url, token, audio)
+        # Hits must return a publicly playable URL: the original delivery link
+        # is stored in the cache meta. Replicate Files URLs need auth, and old
+        # entries predate the field — both regenerate below.
+        public_url = str(meta.get("audio_url") or "").strip()
+        if public_url and _url_reachable(public_url):
             logger.info("sing cache hit %s", key)
-            return SingResult(audio_url, str(meta.get("filename") or "cover.mp3"), True)
-        except Exception:
-            logger.warning("sing cache upload failed; regenerating", exc_info=True)
-            audio.unlink(missing_ok=True)
-            audio.with_suffix(".json").unlink(missing_ok=True)
+            return SingResult(public_url, str(meta.get("filename") or "cover.mp3"), True)
+        logger.info("sing cache entry has no playable url; regenerating %s", key)
+        audio.unlink(missing_ok=True)
+        audio.with_suffix(".json").unlink(missing_ok=True)
 
     workdir = Path(tempfile.mkdtemp(prefix="octop-sing-"))
     try:
@@ -98,7 +116,7 @@ def render_song(url: str, cfg: SingConfig) -> SingResult:
                 root,
                 key,
                 generated,
-                {"filename": filename},
+                {"filename": filename, "audio_url": output_url},
                 cfg.cache_max_entries,
             )
         except Exception:
