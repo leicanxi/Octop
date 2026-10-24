@@ -58,6 +58,7 @@ uv run uvicorn octop.api.gateway.sing:app --host 127.0.0.1 --port 9001
 | `SING_VOICES_FILE` | `~/.octop/sing-voices.json` | Admin-managed voice whitelist |
 | `SING_BILI_COOKIES` | — | Path to a Netscape `cookies.txt` for Bilibili (see HTTP 412 below) |
 | `SING_PROXY` | — | Optional proxy (`http://host:port`) for Bilibili search/download |
+| `SING_NCM_API` | — | Base URL of a running ncm-api sidecar (see below); unlocks VIP tracks |
 
 ### Bilibili HTTP 412
 
@@ -76,6 +77,29 @@ LOCALLY"), place the file on the gateway host, and set `SING_BILI_COOKIES` to
 its path. The file is re-read on every download, so refreshing an expired
 cookie file takes effect without a restart. Alternatively set `SING_PROXY` to
 route music traffic through a different exit node.
+
+### Expanding the NetEase catalog (ncm-api sidecar)
+
+Anonymous NetEase APIs only issue audio links for free tracks. The community
+[ncm-api](https://github.com/moeyy01/ncm-api) project (NeteaseCloudMusicApi
+Enhanced, Node.js) maintains "unblock" parameter tricks that often get VIP
+tracks too — sampled hit rate was 11/11: some full 320kbps tracks, most a
+~45s free-trial clip (enough for short covers). Run it as a sidecar:
+
+```bash
+docker run -d --name ncm-api --restart always \
+  -p 127.0.0.1:3010:3000 moefurina/ncm-api:latest
+export SING_NCM_API=http://127.0.0.1:3010
+```
+
+The gateway resolves audio URLs through the sidecar first and falls back to
+the bare endpoint (free tracks only) when it fails, so a broken/updated
+sidecar degrades gracefully. Trial clips are trimmed within their own
+duration automatically.
+
+Caveats: the unlock tricks are community-maintained attempts against
+NetEase's unofficial API — they can stop working at any time (the fallback
+path keeps free tracks working); trial clips are typically ~45 seconds.
 
 ## Voice whitelist
 

@@ -33,6 +33,10 @@ def _proxy() -> str | None:
     return os.environ.get("SING_PROXY", "").strip() or None
 
 
+def _ncm_base() -> str:
+    return os.environ.get("SING_NCM_API", "").strip().rstrip("/")
+
+
 def is_netease_url(url: str) -> bool:
     return bool(_SONG_URL_RE.search(url or ""))
 
@@ -88,25 +92,46 @@ def search_netease(query: str, limit: int = 3) -> list[SongCandidate]:
     return candidates
 
 
+def _player_row(client: httpx.Client, song_id: str) -> dict[str, Any]:
+    """Resolve the play row; prefer the ncm-api unblock sidecar when configured."""
+    base = _ncm_base()
+    if base:
+        try:
+            response = client.get(
+                f"{base}/song/url/v1", params={"id": int(song_id), "level": "exhigh"}
+            )
+            response.raise_for_status()
+            rows = response.json().get("data")
+            row = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+            if str(row.get("url") or "").strip():
+                return row
+        except Exception:
+            pass  # fall back to the bare endpoint below
+    response = client.get(PLAYER_URL, params={"ids": json.dumps([int(song_id)]), "br": 320000})
+    response.raise_for_status()
+    rows = response.json().get("data")
+    return rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+
+
 def download_audio(url: str, workdir: Path) -> tuple[Path, str, float]:
     """Download the mp3 stream for a NetEase song URL into *workdir*."""
     song_id = _song_id(url)
     with httpx.Client(
-        timeout=30.0, headers=HEADERS, follow_redirects=True, proxy=_proxy()
+        timeout=60.0, headers=HEADERS, follow_redirects=True, proxy=_proxy()
     ) as client:
-        response = client.get(PLAYER_URL, params={"ids": json.dumps([int(song_id)]), "br": 320000})
-        response.raise_for_status()
-        rows = response.json().get("data")
-        row: dict[str, Any] = (
-            rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
-        )
+        row = _player_row(client, song_id)
         direct = str(row.get("url") or "").strip()
         if not direct:
             raise ClientSongError(
                 "网易云没有返回音频直链：该歌曲可能需要 VIP/数字专辑，或接口被风控，请换一首免费歌曲"
             )
-        raw_ms = row.get("time")
-        total_seconds = float(raw_ms) / 1000.0 if isinstance(raw_ms, (int, float)) else 0.0
+        trial = row.get("freeTrialInfo")
+        if isinstance(trial, dict) and isinstance(trial.get("end"), (int, float)):
+            # Trial files contain only the clip, not the full track.
+            total_seconds = float(trial["end"])
+        else:
+            raw_ms = row.get("time")
+            total_seconds = float(raw_ms) / 1000.0 if isinstance(raw_ms, (int, float)) else 0.0
         audio = client.get(direct)
         audio.raise_for_status()
     target = workdir / "source.mp3"
