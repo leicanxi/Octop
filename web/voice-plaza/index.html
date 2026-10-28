@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>音色广场 · 社区 RVC 音色目录</title>
+  <meta name="description" content="社区分享的 RVC 音色目录：挑一个音色名字，去聊天里点歌。">
+  <meta name="theme-color" content="#fbfbfa">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <div class="header-top">
+        <div class="header-title">
+          <p class="eyebrow">RVC VOICE CATALOG</p>
+          <h1>音色广场</h1>
+          <p class="subtitle">社区分享的 RVC 音色目录，挑一个音色名字，去聊天里点歌。</p>
+        </div>
+        <p class="result-count" id="result-count" role="status">正在加载…</p>
+      </div>
+      <div class="header-controls">
+        <div class="search-field">
+          <svg class="icon search-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <circle cx="7" cy="7" r="4.4" fill="none" stroke="currentColor" stroke-width="1.3"></circle>
+            <path d="m10.3 10.3 3.2 3.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path>
+          </svg>
+          <label class="sr-only" for="search">搜索音色</label>
+          <input id="search" type="search" placeholder="搜索音色名称或代号，例如 miku" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="sort-field">
+          <label for="sort">排序</label>
+          <div class="select-wrap">
+            <select id="sort">
+              <option value="favorites">收藏数</option>
+              <option value="label">名称</option>
+            </select>
+            <svg class="icon select-chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="m4.5 6.5 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section class="howto" aria-labelledby="howto-title">
+      <h2 class="section-label" id="howto-title">如何使用</h2>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num" aria-hidden="true">01</span>
+          <div class="step-body">
+            <h3 class="step-title">挑一个音色</h3>
+            <p class="step-text">在广场里找到想听的声音，可以按收藏数排序。</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">02</span>
+          <div class="step-body">
+            <h3 class="step-title">点「复制」拿到音色名</h3>
+            <p class="step-text">卡片上的「复制」会把音色代号放进剪贴板。</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">03</span>
+          <div class="step-body">
+            <h3 class="step-title">去聊天里点歌</h3>
+            <p class="step-text">发 <code>/点歌 歌名 音色名</code>，或者直接对机器人说 <code>用 &lt;音色名&gt; 唱一首 &lt;歌名&gt;</code>。</p>
+          </div>
+        </li>
+      </ol>
+      <p class="howto-note">未指定音色时，会使用默认音色。</p>
+    </section>
+
+    <section class="catalog" aria-labelledby="catalog-title">
+      <h2 class="sr-only" id="catalog-title">音色列表</h2>
+
+      <p class="status-line" id="status-line" role="status">正在加载音色目录…</p>
+
+      <div class="error-box" id="error-box" role="alert" hidden>
+        <p class="error-text" id="error-text">音色目录加载失败，请检查网络后重试。</p>
+        <button class="retry-button" id="retry-button" type="button">重新加载</button>
+      </div>
+
+      <div class="grid" id="grid"></div>
+
+      <div class="empty" id="empty" hidden>
+        <p class="empty-title">没有找到匹配的音色</p>
+        <p class="empty-text">试试更短的关键词，或换一个音色名字。</p>
+      </div>
+
+      <div class="load-more-wrap" id="load-more-wrap" hidden>
+        <button class="load-more" id="load-more" type="button">加载更多</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>音色模型来自社区公开分享，版权归原作者所有；如有侵权请联系删除。</p>
+    </div>
+  </footer>
+
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+  <template id="card-template">
+    <article class="card">
+      <div class="card-head">
+        <h3 class="card-label"></h3>
+        <span class="card-fav">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M8 1.9l1.77 3.83 4.13.49-3.05 2.86.82 4.11L8 11.11l-3.67 2.08.82-4.11L2.1 6.22l4.13-.49z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path>
+          </svg>
+          <span class="sr-only">收藏</span>
+          <span class="fav-count"></span>
+        </span>
+      </div>
+      <div class="slug-row">
+        <code class="slug"></code>
+        <button class="copy" type="button">复制</button>
+      </div>
+      <div class="card-foot">
+        <a class="download" target="_blank" rel="noopener noreferrer">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M8 2v7.1m0 0 2.7-2.7M8 9.1 5.3 6.4M3 11.4v1.3c0 .72.58 1.3 1.3 1.3h7.4c.72 0 1.3-.58 1.3-1.3v-1.3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <span>下载模型</span>
+        </a>
+      </div>
+    </article>
+  </template>
+</body>
+</html>
