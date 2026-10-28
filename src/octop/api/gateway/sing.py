@@ -27,17 +27,20 @@ from octop.infra.music import (
     DEFAULT_REPLICATE_BASE,
     ClientSongError,
     SingConfig,
+    plaza_url,
     render_song,
     render_song_by_query,
     resolve_voice,
-    voice_catalog,
 )
 
 app = FastAPI(title="Octop Sing Gateway", version="0.1.0")
 
 _DEFAULT_MODEL = "sing-song"
 _VOICES_MODEL = "sing-voices"
-_VOICES_NOTE = "自定义 RVC 音色需要管理员审核后加入白名单；用户不能直接传链接。"
+_VOICES_NOTE = (
+    "音色列表已迁移到音色广场：打开 plaza_url 挑选音色，点歌时把音色名传给 voice。"
+    "自定义 RVC 音色仍需管理员审核后加入白名单，用户不能直接传链接。"
+)
 
 
 class ChatMessage(BaseModel):
@@ -100,10 +103,14 @@ def _voice_url(payload: dict[str, Any]) -> str:
     if requested:
         spec = resolve_voice(requested)
         if spec is None:
-            available = ", ".join(item["name"] for item in voice_catalog())
+            # Never enumerate voice names here: custom whitelist entries rely on
+            # staying unknown; the plaza is the only public browsable surface.
             raise HTTPException(
                 status_code=400,
-                detail=f"unknown voice {requested!r}; available: {available}",
+                detail=(
+                    f"unknown voice {requested!r}; browse and pick a voice at "
+                    f"{plaza_url()}, then pass its name as voice"
+                ),
             )
         return spec.url
     configured = os.environ.get("SING_VOICE_URL", "").strip()
@@ -136,9 +143,9 @@ def _config(payload: dict[str, Any]) -> SingConfig:
         ),
         duration=_as_int(
             payload.get("duration"),
-            _as_int(os.environ.get("SING_DURATION"), 25, minimum=5, maximum=30),
+            _as_int(os.environ.get("SING_DURATION"), 25, minimum=5, maximum=60),
             minimum=5,
-            maximum=30,
+            maximum=60,
         ),
         music_source=str(
             payload.get("source") or os.environ.get("SING_MUSIC_SOURCE", "") or "bilibili"
@@ -190,16 +197,17 @@ def list_models() -> dict[str, Any]:
 def list_voices() -> dict[str, Any]:
     return {
         "object": "list",
-        "data": [{"id": item["name"], "label": item["label"]} for item in voice_catalog()],
+        "data": [],
         "note": _VOICES_NOTE,
+        "plaza_url": plaza_url(),
     }
 
 
 def _voices_block() -> dict[str, Any]:
     return {
-        "type": "voices",
-        "voices": voice_catalog(),
-        "note": _VOICES_NOTE,
+        "type": "guide",
+        "text": _VOICES_NOTE,
+        "plaza_url": plaza_url(),
     }
 
 

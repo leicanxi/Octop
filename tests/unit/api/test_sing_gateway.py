@@ -28,7 +28,7 @@ def test_lists_sing_song_model(monkeypatch: MonkeyPatch) -> None:
     assert ids == ["sing-song", "sing-voices"]
 
 
-def test_lists_voices(monkeypatch: MonkeyPatch, tmp_path) -> None:
+def test_voices_endpoint_points_to_plaza(monkeypatch: MonkeyPatch, tmp_path) -> None:
     monkeypatch.setenv("SING_GATEWAY_TOKEN", "secret")
     path = tmp_path / "voices.json"
     path.write_text(json.dumps({"keine": "https://example.com/keine.zip"}), encoding="utf-8")
@@ -36,8 +36,9 @@ def test_lists_voices(monkeypatch: MonkeyPatch, tmp_path) -> None:
     response = _client().get("/v1/voices", headers={"Authorization": "Bearer secret"})
     assert response.status_code == 200
     body = response.json()
-    assert body["data"][0]["id"] == "keine"
-    assert "管理员审核" in body["note"]
+    assert body["data"] == []
+    assert body["plaza_url"] == "https://voice-models.flowbee.top"
+    assert "音色广场" in body["note"]
 
 
 def test_config_resolves_whitelist_voice(monkeypatch: MonkeyPatch, tmp_path) -> None:
@@ -120,7 +121,9 @@ def test_plain_song_content(monkeypatch: MonkeyPatch) -> None:
     assert captured["song"] == "雨爱"
 
 
-def test_voices_model_returns_catalog_without_rendering(monkeypatch: MonkeyPatch, tmp_path) -> None:
+def test_voices_model_returns_plaza_guide_without_rendering(
+    monkeypatch: MonkeyPatch, tmp_path
+) -> None:
     monkeypatch.setenv("SING_GATEWAY_TOKEN", "secret")
     path = tmp_path / "voices.json"
     path.write_text(json.dumps({"keine": "https://example.com/keine.zip"}), encoding="utf-8")
@@ -140,9 +143,52 @@ def test_voices_model_returns_catalog_without_rendering(monkeypatch: MonkeyPatch
     assert body["model"] == "sing-voices"
     assert body["usage"] == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     content = json.loads(body["choices"][0]["message"]["content"])
-    assert content["type"] == "voices"
-    assert content["voices"] == [{"name": "keine", "label": "keine"}]
-    assert "管理员审核" in content["note"]
+    assert content["type"] == "guide"
+    assert content["plaza_url"] == "https://voice-models.flowbee.top"
+    assert "音色广场" in content["text"]
+
+
+def test_unknown_voice_does_not_enumerate(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    monkeypatch.setenv("SING_GATEWAY_TOKEN", "secret")
+    path = tmp_path / "voices.json"
+    path.write_text(json.dumps({"cirno": "https://example.com/cirno.zip"}), encoding="utf-8")
+    monkeypatch.setenv("SING_VOICES_FILE", str(path))
+    response = _client().post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret"},
+        json={
+            "model": "sing-song",
+            "messages": [
+                {"role": "user", "content": json.dumps({"song": "雨爱", "voice": "miku"})}
+            ],
+        },
+    )
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "unknown voice 'miku'" in detail
+    assert "cirno" not in detail  # never enumerate the whitelist
+    assert "voice-models.flowbee.top" in detail
+
+
+def test_config_resolves_catalog_voice(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    monkeypatch.setenv("SING_VOICES_FILE", str(tmp_path / "voices.json"))
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps(
+            {
+                "hatsune-miku": {
+                    "label": "Hatsune Miku",
+                    "url": "https://huggingface.co/a/b/resolve/main/miku.zip",
+                    "favorites": 59,
+                    "weights_id": 1,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SING_VOICES_CATALOG_FILE", str(catalog))
+    config = sing._config({"voice": "hatsune-miku"})
+    assert config.voice_model_url == "https://huggingface.co/a/b/resolve/main/miku.zip"
 
 
 def test_music_source_env_and_payload(monkeypatch: MonkeyPatch) -> None:

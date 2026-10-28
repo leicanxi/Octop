@@ -15,9 +15,11 @@ from octop.infra.music.config import (
 from octop.infra.music.service import render_song, render_song_by_query, search_songs
 from octop.infra.music.voices import (
     VoiceSpec,
+    catalog_path,
+    load_catalog,
     load_voices,
+    plaza_url,
     resolve_voice,
-    voice_catalog,
     voices_path,
 )
 
@@ -31,11 +33,13 @@ __all__ = [
     "SingResult",
     "SongCandidate",
     "VoiceSpec",
+    "catalog_path",
+    "load_catalog",
     "load_voices",
+    "plaza_url",
     "render_song",
     "render_song_by_query",
     "resolve_voice",
     "search_songs",
-    "voice_catalog",
     "voices_path",
 ]

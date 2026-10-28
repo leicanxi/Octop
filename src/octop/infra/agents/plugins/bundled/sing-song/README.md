@@ -21,13 +21,13 @@ REPLICATE_API_TOKEN=r8_xxx
 | `billing_mode` | `direct` | `direct` 直连 Replicate；`flowbee` 走 new-api 的 `sing-song` 按次计费 |
 | `flowbee_base_url` | 空 | 留空则使用用户个人设置里的 Base URL |
 | `flowbee_model` | `sing-song` | new-api 里的按次计费模型名 |
-| `default_voice` | 空 | 白名单里的默认音色名，留空使用白名单默认项 |
+| `default_voice` | 空 | 默认音色名（白名单或音色广场目录里的名字），留空使用白名单默认项 |
 | `voice_model_url` | 内置 Keine 音色 zip | RVC 模型 zip 的公网地址 |
 | `model` | `zsxkib/realistic-voice-cloning` | AICoverGen 封装，内部完成主唱/伴唱分离 |
 | `pitch` | `2` | 整体升降调（半音） |
 | `pitch_mode` | `no-change` | `no-change` / `male-to-female` / `female-to-male` |
 | `start` | `60` | 截取起点（秒） |
-| `duration` | `25` | 片段长度（秒），范围 5~30 |
+| `duration` | `25` | 片段长度（秒），范围 5~60 |
 | `cache_ttl_hours` | `168` | 缓存有效期（小时），0 表示不过期 |
 | `cache_max_entries` | `50` | 缓存条数上限，按最近使用淘汰 |
 | `replicate_base_url` | `https://api.replicate.com/v1` | `direct` 模式使用 |
@@ -35,9 +35,11 @@ REPLICATE_API_TOKEN=r8_xxx
 `flowbee` 模式使用**用户自己的模型 Key**，没有配置 Key 时直接报错，不回退到共享 Key。
 new-api、网关和 AstrBot 的接入说明见 [`docs/sing-gateway.md`](../../../../../../../docs/sing-gateway.md)。
 
-## 音色白名单
+## 音色
 
-管理员维护 `~/.octop/sing-voices.json`（可用 `SING_VOICES_FILE` 改路径）：
+音色分两个来源，查找时**白名单优先，目录兜底**：
+
+**白名单**（管理员维护 `~/.octop/sing-voices.json`，可用 `SING_VOICES_FILE` 改路径）：
 
 ```json
 {
@@ -46,11 +48,20 @@ new-api、网关和 AstrBot 的接入说明见 [`docs/sing-gateway.md`](../../..
 }
 ```
 
-- agent 可以调 `sing_song(voice="cirno")`，或让用户从 `list_voices` 的结果里选。
+- 存放内置默认音色和审核过的自定义音色；条目不会出现在任何接口返回里，
+  名字即凭证：知道音色名才能用。
 - 用户**不能**直接传 RVC 链接；新音色必须由管理员审核后加入白名单。
-- `list_voices` 会返回音色列表和这条说明，agent 可以直接转述给用户。
 - 服务器部署时把 Octop 服务和网关的 `SING_VOICES_FILE` 指向同一个绝对路径，
   例如 `/etc/octop/sing-voices.json`；不要依赖某个用户的本机目录。
+
+**公开目录**（`~/.octop/sing-voices-catalog.json`，可用 `SING_VOICES_CATALOG_FILE`
+改路径）：由 `scripts/scrape_voice_catalog.py` 从 easyaivoice 抓取的开源 RVC
+模型集合（仅收录 Hugging Face 直链），供音色广场展示与选用。
+
+- 音色广场（默认 `https://voice-models.flowbee.top`，可用 `SING_VOICE_PLAZA_URL`
+  覆盖）是唯一的公开浏览入口；用户挑好音色后在聊天里报名字即可。
+- `list_voices` 不再返回音色列表，只返回广场链接和使用说明，agent 可直接转述。
+- 音色名不存在时报错只提示广场链接，不枚举任何名字。
 
 ## 交互
 

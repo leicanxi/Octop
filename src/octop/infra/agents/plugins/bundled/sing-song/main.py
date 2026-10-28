@@ -24,10 +24,10 @@ from octop.infra.music import (
     DEFAULT_VOICE_URL,
     PITCH_MODES,
     SingConfig,
+    plaza_url,
     render_song,
     resolve_voice,
     search_songs,
-    voice_catalog,
 )
 
 logger = logging.getLogger("octop.plugins.sing_song")
@@ -93,7 +93,7 @@ def _sing_config(cfg: dict[str, Any], *, voice_model_url: str | None = None) -> 
         pitch=_as_int(cfg.get("pitch"), 2, minimum=-24, maximum=24),
         pitch_mode=_pitch_mode(cfg.get("pitch_mode")),
         start=_as_int(cfg.get("start"), 60, minimum=0, maximum=3600),
-        duration=_as_int(cfg.get("duration"), 25, minimum=5, maximum=30),
+        duration=_as_int(cfg.get("duration"), 25, minimum=5, maximum=60),
         index_rate=_as_float(cfg.get("index_rate"), 0.75, minimum=0.0, maximum=1.0),
         filter_radius=_as_int(cfg.get("filter_radius"), 3, minimum=0, maximum=7),
         rms_mix_rate=_as_float(cfg.get("rms_mix_rate"), 0.25, minimum=0.0, maximum=1.0),
@@ -224,7 +224,7 @@ async def sing_song(
         cfg["pitch_mode"] = pitch_mode
 
     start_value = _as_int(cfg.get("start"), 60, minimum=0, maximum=3600)
-    duration_value = _as_int(cfg.get("duration"), 25, minimum=5, maximum=30)
+    duration_value = _as_int(cfg.get("duration"), 25, minimum=5, maximum=60)
     pitch_value = _as_int(cfg.get("pitch"), 2, minimum=-24, maximum=24)
     pitch_mode_value = _pitch_mode(cfg.get("pitch_mode"))
     billing_mode = str(cfg.get("billing_mode") or "direct").strip().lower()
@@ -257,11 +257,14 @@ async def sing_song(
         if voice_name:
             voice_spec = resolve_voice(voice_name)
             if voice_spec is None:
-                names = ", ".join(item["name"] for item in voice_catalog())
                 return json.dumps(
                     {
-                        "error": f"unknown voice {voice_name!r}; available: {names}",
-                        "note": "自定义 RVC 音色需要管理员审核后加入白名单；用户不能直接传链接。",
+                        "error": f"unknown voice {voice_name!r}",
+                        "note": (
+                            "请到音色广场挑选音色后把音色名传给 voice："
+                            f"{plaza_url()}。自定义 RVC 音色需管理员审核，"
+                            "用户不能直接传链接。"
+                        ),
                     },
                     ensure_ascii=False,
                 )
@@ -280,11 +283,16 @@ async def sing_song(
 
 
 def list_voices() -> str:
-    """List selectable voice names and the custom-voice policy."""
+    """Point users to the voice plaza; voices are picked there and used by name."""
     return json.dumps(
         {
-            "voices": voice_catalog(),
-            "note": "自定义 RVC 音色需要管理员审核后加入白名单；用户不能直接传链接。",
+            "guide": "请让用户到音色广场浏览挑选音色",
+            "plaza_url": plaza_url(),
+            "note": (
+                "音色目录不再通过接口返回：用户在广场挑好后，点歌时传 voice=音色名即可；"
+                "未指定音色时使用插件配置的默认音色。自定义 RVC 音色需管理员审核加入白名单，"
+                "用户不能直接传链接。"
+            ),
         },
         ensure_ascii=False,
     )
@@ -313,8 +321,9 @@ def setup(ctx: PluginContext) -> None:
         "list_voices",
         list_voices,
         description=(
-            "List selectable singing voice names. Custom RVC models must be reviewed by an "
-            "admin and added to the whitelist; users cannot pass raw model URLs."
+            "Return the voice plaza URL and usage guidance. Voice names are browsed and "
+            "picked on the plaza; pass the chosen name to sing_song(voice=...). Custom "
+            "RVC models must be reviewed by an admin; users cannot pass raw model URLs."
         ),
     )
     ctx.tool(
@@ -323,10 +332,11 @@ def setup(ctx: PluginContext) -> None:
         description=(
             "Step 2 of 2: generate a short singing clip in the configured RVC voice. "
             "Pass the url the user confirmed, or song only when the user asked to skip "
-            "confirmation. `voice` is a whitelist name from list_voices; custom voices "
-            "require admin review. Defaults are tuned for a short clip (duration up to 30s); "
-            "do not override start/duration/pitch unless the user asks. Returns an audio "
-            "attachment; do not paraphrase its JSON payload."
+            "confirmation. `voice` is a voice name the user picked on the voice plaza "
+            "(see list_voices for the URL); custom voices require admin review. Defaults "
+            "are tuned for a short clip (duration up to 60s); do not override "
+            "start/duration/pitch unless the user asks. Returns an audio attachment; "
+            "do not paraphrase its JSON payload."
         ),
         config_fields=[
             {
@@ -347,7 +357,7 @@ def setup(ctx: PluginContext) -> None:
             {
                 "name": "default_voice",
                 "label": "默认音色",
-                "help": "白名单里的名字（如 keine / cirno），留空使用白名单默认项。",
+                "help": "音色名（白名单或音色广场目录里的名字，如 keine / cirno），留空使用白名单默认项。",
             },
             {
                 "name": "voice_model_url",
@@ -380,7 +390,7 @@ def setup(ctx: PluginContext) -> None:
                 "name": "duration",
                 "label": "片段长度（秒）",
                 "type": "number",
-                "help": "默认 25，范围 5~30。",
+                "help": "默认 25，范围 5~60。",
             },
             {
                 "name": "cache_ttl_hours",

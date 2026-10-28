@@ -17,7 +17,12 @@ from octop.infra.music.bilibili import candidate_rows, parse_duration
 from octop.infra.music.cache import cache_key, cache_lookup, cache_store
 from octop.infra.music.config import SingConfig
 from octop.infra.music.media import safe_filename
-from octop.infra.music.voices import load_voices, resolve_voice
+from octop.infra.music.voices import (
+    load_catalog,
+    load_voices,
+    plaza_url,
+    resolve_voice,
+)
 
 _PLUGIN = (
     Path(__file__).resolve().parents[2]
@@ -124,6 +129,71 @@ def test_voice_whitelist(tmp_path: Path) -> None:
     assert resolve_voice("CIRNO", path).url == "https://example.com/cirno.zip"
     assert resolve_voice("", path).name == "keine"
     assert resolve_voice("missing", path) is None
+
+
+def test_resolve_voice_falls_back_to_catalog(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SING_VOICES_FILE", str(tmp_path / "voices.json"))
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps(
+            {
+                "hatsune-miku": {
+                    "label": "Hatsune Miku",
+                    "url": "https://huggingface.co/a/b/resolve/main/miku.zip",
+                    "favorites": 59,
+                    "weights_id": 1,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SING_VOICES_CATALOG_FILE", str(catalog))
+    spec = resolve_voice("hatsune-miku")
+    assert spec is not None and spec.url == "https://huggingface.co/a/b/resolve/main/miku.zip"
+    assert load_catalog()["hatsune-miku"].label == "Hatsune Miku"
+
+
+def test_whitelist_wins_over_catalog(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    white = tmp_path / "voices.json"
+    white.write_text(json.dumps({"miku": "https://example.com/white.zip"}), encoding="utf-8")
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps({"miku": "https://huggingface.co/a/b/resolve/main/miku.zip"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SING_VOICES_FILE", str(white))
+    monkeypatch.setenv("SING_VOICES_CATALOG_FILE", str(catalog))
+    assert resolve_voice("miku").url == "https://example.com/white.zip"
+
+
+def test_catalog_edits_apply_without_restart(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"miku": "https://example.com/v1.zip"}), encoding="utf-8")
+    monkeypatch.setenv("SING_VOICES_FILE", str(tmp_path / "voices.json"))
+    monkeypatch.setenv("SING_VOICES_CATALOG_FILE", str(catalog))
+    assert resolve_voice("miku").url == "https://example.com/v1.zip"
+    catalog.write_text(
+        json.dumps({"miku": "https://example.com/second-version.zip"}), encoding="utf-8"
+    )
+    stat = catalog.stat()
+    os.utime(catalog, ns=(stat.st_atime_ns + 10**9, stat.st_mtime_ns + 10**9))
+    assert resolve_voice("miku").url == "https://example.com/second-version.zip"
+
+
+def test_plaza_url_env_override(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delenv("SING_VOICE_PLAZA_URL", raising=False)
+    assert plaza_url() == "https://voice-models.flowbee.top"
+    monkeypatch.setenv("SING_VOICE_PLAZA_URL", "https://example.com/voices")
+    assert plaza_url() == "https://example.com/voices"
+
+
+def test_plugin_list_voices_points_to_plaza(monkeypatch: MonkeyPatch) -> None:
+    module = _load()
+    monkeypatch.delenv("SING_VOICE_PLAZA_URL", raising=False)
+    payload = json.loads(module.list_voices())
+    assert payload["plaza_url"] == "https://voice-models.flowbee.top"
+    assert "voices" not in payload
+    assert "note" in payload
 
 
 def test_sing_config_accepts_voice_override() -> None:
