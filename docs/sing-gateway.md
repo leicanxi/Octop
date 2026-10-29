@@ -51,7 +51,7 @@ uv run uvicorn octop.api.gateway.sing:app --host 127.0.0.1 --port 9001
 | `SING_REPLICATE_BASE_URL` | `https://api.replicate.com/v1` | Replicate API base |
 | `SING_PITCH` | `2` | Default semitone shift |
 | `SING_START` | `60` | Default clip start (seconds) |
-| `SING_DURATION` | `25` | Default clip length (5–30) |
+| `SING_DURATION` | `25` | Default clip length (5–60) |
 | `SING_MUSIC_SOURCE` | `bilibili` | Music source for search/download: `bilibili` or `netease` (payload `"source"` overrides per request) |
 | `SING_CACHE_TTL_HOURS` | `168` | Disk cache TTL |
 | `SING_CACHE_MAX_ENTRIES` | `50` | Disk cache entries |
@@ -248,14 +248,36 @@ Endpoints (public, no gateway token — the plaza calls them same-origin):
 Approved voices are written into the whitelist with a random 4-hex name
 suffix (`atri-7f3k`) so a submitted voice stays known only to its submitter;
 records go to `sing-voice-requests.json` with the submitter's FlowBee username
-for future account-based migration. File uploads are stored under
-`SING_UPLOAD_DIR` and served from `SING_PUBLIC_BASE_URL/uploads/…`; link
-submissions keep the submitted URL after the archive is downloaded and
+for future account-based migration.
+
+File storage priority — the gateway host can keep zero model files:
+
+1. **Hugging Face** (`SING_HF_REPO` + `SING_HF_TOKEN`): the archive is uploaded
+   to `{repo}/resolve/main/{SING_HF_PREFIX}/{name}.zip`. Requires
+   `pip install huggingface_hub` (optional runtime dependency) and outbound
+   access to huggingface.co — note that `hf-mirror.com` only proxies
+   **downloads**, its upload API redirects back to huggingface.co.
+2. **ModelScope** (`SING_MS_REPO` + `SING_MS_TOKEN`): the archive is uploaded
+   to `{repo}/resolve/master/{SING_MS_PREFIX}/{name}.zip`
+   (e.g. `https://modelscope.cn/models/…/resolve/master/uploads/…` — publicly
+   fetchable, so Replicate can pull it). Requires `pip install modelscope`.
+   This is the working choice on hosts that cannot reach Hugging Face
+   (e.g. mainland/adjacent networks).
+3. **Local disk** (`SING_UPLOAD_DIR` + `SING_PUBLIC_BASE_URL`): served from
+   `{SING_PUBLIC_BASE_URL}/uploads/…`.
+
+Link submissions keep the submitted URL after the archive is downloaded and
 validated.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `SING_UPLOAD_DIR` | — | Local directory for uploaded zips (file mode disabled when empty) |
+| `SING_HF_REPO` | — | Hugging Face repo for uploaded models (e.g. `user/rvc-models`) |
+| `SING_HF_TOKEN` | — | Write token for `SING_HF_REPO` |
+| `SING_HF_PREFIX` | `uploads` | Path prefix inside the HF repo |
+| `SING_MS_REPO` | — | ModelScope repo for uploaded models (e.g. `user/rvc-voice-uploads`) |
+| `SING_MS_TOKEN` | — | ModelScope access token (`ms-…`) |
+| `SING_MS_PREFIX` | `uploads` | Path prefix inside the ModelScope repo |
+| `SING_UPLOAD_DIR` | — | Local directory for uploaded zips (fallback when HF is unset) |
 | `SING_PUBLIC_BASE_URL` | — | Public base URL that serves `SING_UPLOAD_DIR` (e.g. the plaza origin) |
 | `SING_UPLOAD_MAX_MB` | `300` | Per-submission archive size cap |
 | `SING_UPLOAD_DAILY_LIMIT` | `5` | Submissions per client IP per day (`0` disables the limit) |

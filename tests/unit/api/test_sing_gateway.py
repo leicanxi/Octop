@@ -335,3 +335,85 @@ def test_status_endpoint_404(monkeypatch: MonkeyPatch, tmp_path) -> None:
     _submission_env(monkeypatch, tmp_path)
     response = _client().get("/v1/voice-requests/vr-missing")
     assert response.status_code == 404
+
+
+def test_submit_upload_uses_huggingface_storage(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    monkeypatch.delenv("SING_UPLOAD_DIR", raising=False)
+    monkeypatch.delenv("SING_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.setenv("SING_HF_REPO", "leicanxi/rvc-models")
+    monkeypatch.setenv("SING_HF_TOKEN", "hf_test")
+    captured: dict[str, str] = {}
+
+    def fake_upload(local_path, *, repo_id: str, path_in_repo: str, token: str) -> str:
+        captured.update(
+            {
+                "repo_id": repo_id,
+                "path_in_repo": path_in_repo,
+                "token": token,
+                "exists": str(local_path),
+            }
+        )
+        return f"https://huggingface.co/{repo_id}/resolve/main/{path_in_repo}"
+
+    monkeypatch.setattr(sing, "hf_upload", fake_upload)
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "HF Voice", "flowbee_user": "dave"},
+        files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "approved"
+    assert body["name"].startswith("hf-voice-")
+    assert captured["repo_id"] == "leicanxi/rvc-models"
+    assert captured["path_in_repo"] == f"uploads/{body['name']}.zip"
+    assert captured["token"] == "hf_test"
+    voices = json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
+    assert voices[body["name"]]["source"] == "hf"
+    assert voices[body["name"]]["url"].startswith("https://huggingface.co/")
+
+
+def test_submit_file_requires_storage(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    monkeypatch.delenv("SING_UPLOAD_DIR", raising=False)
+    monkeypatch.delenv("SING_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("SING_HF_REPO", raising=False)
+    monkeypatch.delenv("SING_HF_TOKEN", raising=False)
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "No Storage", "flowbee_user": "erin"},
+        files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+    )
+    assert response.status_code == 503
+    assert "存储" in response.json()["detail"]
+
+
+def test_submit_upload_uses_modelscope_storage(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    monkeypatch.delenv("SING_UPLOAD_DIR", raising=False)
+    monkeypatch.delenv("SING_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("SING_HF_REPO", raising=False)
+    monkeypatch.delenv("SING_HF_TOKEN", raising=False)
+    monkeypatch.setenv("SING_MS_REPO", "leicanxi/rvc-voice-uploads")
+    monkeypatch.setenv("SING_MS_TOKEN", "ms_test")
+    captured: dict[str, str] = {}
+
+    def fake_upload(local_path, *, repo_id: str, path_in_repo: str, token: str) -> str:
+        captured.update({"repo_id": repo_id, "path_in_repo": path_in_repo, "token": token})
+        return f"https://modelscope.cn/models/{repo_id}/resolve/master/{path_in_repo}"
+
+    monkeypatch.setattr(sing, "modelscope_upload", fake_upload)
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "MS Voice", "flowbee_user": "frank"},
+        files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "approved"
+    assert captured["repo_id"] == "leicanxi/rvc-voice-uploads"
+    assert captured["path_in_repo"] == f"uploads/{body['name']}.zip"
+    voices = json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
+    assert voices[body["name"]]["source"] == "ms"
+    assert voices[body["name"]]["url"].startswith("https://modelscope.cn/")

@@ -403,3 +403,47 @@ def build_request_record(
         "reason": reason,
         "created_at": int(time.time()),
     }
+
+
+def hf_upload(local_path: Path, *, repo_id: str, path_in_repo: str, token: str) -> str:
+    """Upload a model archive to Hugging Face and return its resolve URL.
+
+    ``huggingface_hub`` is an optional runtime dependency: install it with
+    ``pip install huggingface_hub`` to enable HF storage mode.
+    """
+    try:
+        from huggingface_hub import HfApi
+    except ImportError as exc:  # pragma: no cover - depends on deployment
+        raise RuntimeError(
+            "huggingface_hub 未安装，无法使用 HF 存储模式（pip install huggingface_hub）"
+        ) from exc
+    api = HfApi(token=token)
+    api.upload_file(
+        path_or_fileobj=str(local_path),
+        path_in_repo=path_in_repo,
+        repo_id=repo_id,
+        commit_message=f"voice upload: {path_in_repo}",
+    )
+    return f"https://huggingface.co/{repo_id}/resolve/main/{path_in_repo}"
+
+
+def modelscope_upload(local_path: Path, *, repo_id: str, path_in_repo: str, token: str) -> str:
+    """Upload a model archive to ModelScope and return its resolve URL.
+
+    ``modelscope`` is an optional runtime dependency: install it with
+    ``pip install modelscope`` to enable ModelScope storage mode.
+    """
+    try:
+        from modelscope.hub.api import HubApi
+    except ImportError as exc:  # pragma: no cover - depends on deployment
+        raise RuntimeError(
+            "modelscope 未安装，无法使用 ModelScope 存储模式（pip install modelscope）"
+        ) from exc
+    api = HubApi()
+    api.login(token)
+    api.upload_file(
+        path_or_fileobj=str(local_path),
+        path_in_repo=path_in_repo,
+        repo_id=repo_id,
+    )
+    return f"https://modelscope.cn/models/{repo_id}/resolve/master/{path_in_repo}"

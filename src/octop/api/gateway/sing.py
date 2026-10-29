@@ -15,6 +15,7 @@ import asyncio
 import hmac
 import ipaddress
 import json
+import logging
 import os
 import shutil
 import socket
@@ -46,7 +47,9 @@ from octop.infra.music.submissions import (
     build_request_record,
     generate_name,
     get_request,
+    hf_upload,
     llm_review,
+    modelscope_upload,
     new_request_id,
     review_archive,
     save_request,
@@ -54,6 +57,8 @@ from octop.infra.music.submissions import (
 )
 
 app = FastAPI(title="Octop Sing Gateway", version="0.1.0")
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "sing-song"
 _VOICES_MODEL = "sing-voices"
@@ -269,6 +274,12 @@ async def chat_completions(body: ChatCompletionRequest) -> dict[str, Any]:
 
 UPLOAD_DIR_ENV = "SING_UPLOAD_DIR"
 PUBLIC_BASE_ENV = "SING_PUBLIC_BASE_URL"
+HF_REPO_ENV = "SING_HF_REPO"
+HF_TOKEN_ENV = "SING_HF_TOKEN"
+HF_PREFIX_ENV = "SING_HF_PREFIX"
+MS_REPO_ENV = "SING_MS_REPO"
+MS_TOKEN_ENV = "SING_MS_TOKEN"
+MS_PREFIX_ENV = "SING_MS_PREFIX"
 _RATE_WINDOW_SECONDS = 86400.0
 _recent_submissions: dict[str, list[float]] = {}
 
@@ -281,6 +292,43 @@ def _upload_dir() -> Path | None:
 def _public_base() -> str | None:
     raw = os.environ.get(PUBLIC_BASE_ENV, "").strip()
     return raw.rstrip("/") if raw else None
+
+
+def _hf_repo() -> str | None:
+    raw = os.environ.get(HF_REPO_ENV, "").strip()
+    return raw or None
+
+
+def _hf_token() -> str:
+    return os.environ.get(HF_TOKEN_ENV, "").strip()
+
+
+def _hf_prefix() -> str:
+    raw = os.environ.get(HF_PREFIX_ENV, "").strip().strip("/")
+    return raw or "uploads"
+
+
+def _ms_repo() -> str | None:
+    raw = os.environ.get(MS_REPO_ENV, "").strip()
+    return raw or None
+
+
+def _ms_token() -> str:
+    return os.environ.get(MS_TOKEN_ENV, "").strip()
+
+
+def _ms_prefix() -> str:
+    raw = os.environ.get(MS_PREFIX_ENV, "").strip().strip("/")
+    return raw or "uploads"
+
+
+def _storage_ready() -> bool:
+    """File uploads need an HF/ModelScope target or a local public dir."""
+    if _hf_repo() and _hf_token():
+        return True
+    if _ms_repo() and _ms_token():
+        return True
+    return _upload_dir() is not None and _public_base() is not None
 
 
 def _max_upload_mb() -> int:
@@ -400,6 +448,38 @@ def _review_submission(
     if source_url:
         url = source_url
         source_kind = "link"
+    elif _hf_repo() and _hf_token():
+        path_in_repo = f"{_hf_prefix()}/{name}.zip"
+        try:
+            url = hf_upload(
+                path,
+                repo_id=_hf_repo() or "",
+                path_in_repo=path_in_repo,
+                token=_hf_token(),
+            )
+        except Exception as exc:  # noqa: BLE001 - surface operator-actionable reason
+            logger.warning("huggingface upload failed: %s", exc)
+            raise HTTPException(
+                status_code=502,
+                detail="上传到 Hugging Face 失败，请稍后重试或改用模型直链",
+            ) from exc
+        source_kind = "hf"
+    elif _ms_repo() and _ms_token():
+        path_in_repo = f"{_ms_prefix()}/{name}.zip"
+        try:
+            url = modelscope_upload(
+                path,
+                repo_id=_ms_repo() or "",
+                path_in_repo=path_in_repo,
+                token=_ms_token(),
+            )
+        except Exception as exc:  # noqa: BLE001 - surface operator-actionable reason
+            logger.warning("modelscope upload failed: %s", exc)
+            raise HTTPException(
+                status_code=502,
+                detail="上传到 ModelScope 失败，请稍后重试或改用模型直链",
+            ) from exc
+        source_kind = "ms"
     else:
         if upload_dir is None or public_base is None:
             raise HTTPException(status_code=503, detail="服务器未开启文件上传")
@@ -462,10 +542,10 @@ async def submit_voice_request(request: Request) -> dict[str, Any]:
     max_bytes = _max_upload_mb() * 1024 * 1024
     upload_dir = _upload_dir()
     public_base = _public_base()
-    if upload is not None and (upload_dir is None or public_base is None):
+    if upload is not None and not _storage_ready():
         raise HTTPException(
             status_code=503,
-            detail="服务器未开启文件上传，请改用模型直链（huggingface / modelscope 等）",
+            detail="服务器未配置模型存储，请改用模型直链（huggingface / modelscope 等）",
         )
     descriptor, temp_name = tempfile.mkstemp(prefix="sing-voice-", suffix=".zip")
     os.close(descriptor)
