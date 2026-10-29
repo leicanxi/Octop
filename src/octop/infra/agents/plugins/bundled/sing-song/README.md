@@ -60,6 +60,8 @@ new-api、网关和 AstrBot 的接入说明见 [`docs/sing-gateway.md`](../../..
 
 - 音色广场（默认 `https://voice-models.flowbee.top`，可用 `SING_VOICE_PLAZA_URL`
   覆盖）是唯一的公开浏览入口；用户挑好音色后在聊天里报名字即可。
+- 自有 RVC 模型可在广场页「上传音色」自助提交（zip 或直链，自动审核），
+  通过后会得到带随机后缀的专属音色名。
 - `list_voices` 不再返回音色列表，只返回广场链接和使用说明，agent 可直接转述。
 - 音色名不存在时报错只提示广场链接，不枚举任何名字。
 

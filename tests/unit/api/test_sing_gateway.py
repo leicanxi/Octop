@@ -213,3 +213,125 @@ def test_client_song_error_maps_to_400(monkeypatch: MonkeyPatch) -> None:
     )
     assert response.status_code == 400
     assert "VIP" in response.json()["detail"]
+
+
+def _submission_env(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    monkeypatch.setenv("SING_VOICES_FILE", str(tmp_path / "voices.json"))
+    monkeypatch.setenv("SING_VOICE_REQUESTS_FILE", str(tmp_path / "requests.json"))
+    monkeypatch.setenv("SING_UPLOAD_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("SING_PUBLIC_BASE_URL", "https://plaza.example")
+    monkeypatch.setenv("SING_UPLOAD_DAILY_LIMIT", "100")
+    monkeypatch.delenv("SING_REVIEW_BASE_URL", raising=False)
+    monkeypatch.delenv("SING_REVIEW_API_KEY", raising=False)
+    sing._recent_submissions.clear()
+
+
+def _model_zip_bytes() -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("model.pth", b"stub-weights")
+    return buffer.getvalue()
+
+
+def test_submit_upload_auto_approves_and_registers_voice(
+    monkeypatch: MonkeyPatch, tmp_path
+) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "My Voice", "flowbee_user": "alice"},
+        files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "approved"
+    assert body["name"].startswith("my-voice-")
+    voices = json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
+    entry = voices[body["name"]]
+    assert entry["label"] == "My Voice"
+    assert entry["added_by"] == "alice"
+    assert entry["url"] == f"https://plaza.example/uploads/{body['name']}.zip"
+    assert (tmp_path / "uploads" / f"{body['name']}.zip").exists()
+
+    status = _client().get(body["status_path"])
+    assert status.status_code == 200
+    assert status.json()["flowbee_user"] == "alice"
+
+
+def test_submit_link_uses_source_url(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+
+    def fake_download(url: str, dest, max_bytes: int) -> None:
+        dest.write_bytes(_model_zip_bytes())
+
+    monkeypatch.setattr(sing, "_download_zip", fake_download)
+    response = _client().post(
+        "/v1/voice-requests",
+        json={
+            "label": "Linked Voice",
+            "flowbee_user": "bob",
+            "url": "https://huggingface.co/a/b/resolve/main/m.zip",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "approved"
+    voices = json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
+    assert voices[body["name"]]["url"] == "https://huggingface.co/a/b/resolve/main/m.zip"
+
+
+def test_submit_rejects_unsafe_pickle(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    import io
+    import zipfile
+
+    inner = io.BytesIO()
+    with zipfile.ZipFile(inner, "w") as payload:
+        payload.writestr("archive/data.pkl", b"cposix\nsystem\n.")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("model.pth", inner.getvalue())
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "Evil", "flowbee_user": "eve"},
+        files={"file": ("model.zip", buffer.getvalue(), "application/zip")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "rejected"
+    assert "posix.system" in body["reason"]
+    assert not (tmp_path / "voices.json").exists()
+
+
+def test_submit_requires_flowbee_user(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "No User"},
+        files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+    )
+    assert response.status_code == 400
+    assert "FlowBee" in response.json()["detail"]
+
+
+def test_submit_rejects_non_public_link(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    response = _client().post(
+        "/v1/voice-requests",
+        json={
+            "label": "SSRF",
+            "flowbee_user": "carol",
+            "url": "http://127.0.0.1:9001/health",
+        },
+    )
+    assert response.status_code == 400
+    assert "公网" in response.json()["detail"]
+
+
+def test_status_endpoint_404(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    response = _client().get("/v1/voice-requests/vr-missing")
+    assert response.status_code == 404

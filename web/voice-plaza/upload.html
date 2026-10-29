@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>上传音色 · 音色广场</title>
+  <meta name="description" content="提交你自己的 RVC 音色模型：上传 zip 或提供模型直链，自动审核通过后即可使用。">
+  <meta name="theme-color" content="#fbfbfa">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./upload.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <div class="header-top">
+        <div class="header-title">
+          <p class="eyebrow">RVC VOICE CATALOG</p>
+          <h1>上传音色</h1>
+          <p class="subtitle">提交你自己的 RVC 音色模型。审核通过后会生成一个专属音色名，只有知道这个名字的人才能用它点歌。</p>
+        </div>
+        <a class="back-link" href="./">← 返回音色广场</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section class="howto" aria-labelledby="notice-title">
+      <h2 class="section-label" id="notice-title">提交前须知</h2>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num" aria-hidden="true">01</span>
+          <div class="step-body">
+            <h3 class="step-title">只支持 RVC 模型</h3>
+            <p class="step-text">zip 内需要包含 <code>.pth</code> 权重（<code>.index</code> 可选），与主流 RVC 导出格式一致。</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">02</span>
+          <div class="step-body">
+            <h3 class="step-title">自动安全审核</h3>
+            <p class="step-text">提交后立即校验模型结构并做 pickle 安全检查，一般几秒内出结果。</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">03</span>
+          <div class="step-body">
+            <h3 class="step-title">记住音色名</h3>
+            <p class="step-text">通过后生成的音色名是使用凭证，请复制保存；之后发 <code>/点歌 歌名 音色名</code> 即可。</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="catalog" aria-labelledby="form-title">
+      <h2 class="section-label" id="form-title">提交模型</h2>
+
+      <form class="form-card" id="upload-form" novalidate>
+        <div class="field">
+          <label for="label">音色显示名</label>
+          <input id="label" name="label" type="text" maxlength="80" required autocomplete="off"
+                 placeholder="例如：我的自训练音色 / 角色名">
+          <p class="field-hint">用于生成音色名，不会公开展示完整列表。</p>
+        </div>
+
+        <div class="field">
+          <label for="flowbee-user">FlowBee 用户名</label>
+          <input id="flowbee-user" name="flowbee_user" type="text" maxlength="64" required
+                 autocomplete="off" spellcheck="false" placeholder="你在 FlowBee 的账号用户名">
+          <p class="field-hint">必填，用于把提交记录绑定到账号（后续接入登录时会用到）。</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label" id="source-label">模型来源</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="source-label">
+            <label class="segment">
+              <input type="radio" name="mode" value="file" checked>
+              <span>上传 zip 文件</span>
+            </label>
+            <label class="segment">
+              <input type="radio" name="mode" value="url">
+              <span>提供模型直链</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field" id="file-field">
+          <label for="file">RVC 模型 zip</label>
+          <input id="file" name="file" type="file" accept=".zip,application/zip">
+          <p class="field-hint">大小上限 300MB；仅支持 .zip。</p>
+        </div>
+
+        <div class="field" id="url-field" hidden>
+          <label for="url">模型直链</label>
+          <input id="url" name="url" type="url" inputmode="url"
+                 placeholder="https://huggingface.co/…/resolve/main/model.zip" spellcheck="false">
+          <p class="field-hint">需可公开下载的 zip 直链（HF / ModelScope 的 resolve 链接等）。</p>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary-button" id="submit-button" type="submit">提交审核</button>
+          <span class="form-status" id="form-status" role="status"></span>
+        </div>
+        <div class="progress" id="progress" hidden>
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </form>
+
+      <div class="result-box" id="result-box" role="status" hidden>
+        <p class="result-title" id="result-title"></p>
+        <p class="result-reason" id="result-reason"></p>
+        <div class="result-name-row" id="result-name-row" hidden>
+          <code class="slug" id="result-name"></code>
+          <button class="copy" id="copy-name" type="button">复制</button>
+        </div>
+        <p class="result-usage" id="result-usage" hidden>用法：在聊天里发送 <code>/点歌 歌名 音色名</code>，或对机器人说「用这个音色唱一首…」。</p>
+      </div>
+
+      <p class="status-line" id="status-line" hidden></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>音色模型来自社区公开分享，版权归原作者所有；如有侵权请联系删除。</p>
+    </div>
+  </footer>
+
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+</body>
+</html>

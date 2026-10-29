@@ -222,6 +222,48 @@ plugin, DSH, …) can show the same guidance:
 Keep `sing-voices` priced at 0 on new-api — the response `usage` is all zeros,
 so the call is free either way.
 
+## Voice submissions (self-service uploads)
+
+FlowBee-mode users (who cannot edit this whitelist themselves) submit their own
+RVC models from the plaza upload page. Submissions are auto-reviewed and
+approved without a human queue:
+
+1. **Rules layer** (always on): the archive must be a zip with a `.pth`, no
+   script/executable members, no path traversal, within the size cap, and its
+   pickles must not reference dangerous globals (`os`, `posix`, `subprocess`,
+   `ctypes`, ...). This is the gate that protects the operator's Replicate
+   token from `.pth` pickle payloads.
+2. **LLM layer** (optional): a compact summary (label, FlowBee user, source,
+   file manifest, deduplicated pickle globals) is sent to a cheap chat model
+   which approves or rejects. When it is not configured or the call fails, the
+   rules verdict is used instead.
+
+Endpoints (public, no gateway token — the plaza calls them same-origin):
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /v1/voice-requests` | multipart (`label`, `flowbee_user`, `file` \| `url`) or JSON `{label, flowbee_user, url}` |
+| `GET /v1/voice-requests/{id}` | submission status (the id is the capability) |
+
+Approved voices are written into the whitelist with a random 4-hex name
+suffix (`atri-7f3k`) so a submitted voice stays known only to its submitter;
+records go to `sing-voice-requests.json` with the submitter's FlowBee username
+for future account-based migration. File uploads are stored under
+`SING_UPLOAD_DIR` and served from `SING_PUBLIC_BASE_URL/uploads/…`; link
+submissions keep the submitted URL after the archive is downloaded and
+validated.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `SING_UPLOAD_DIR` | — | Local directory for uploaded zips (file mode disabled when empty) |
+| `SING_PUBLIC_BASE_URL` | — | Public base URL that serves `SING_UPLOAD_DIR` (e.g. the plaza origin) |
+| `SING_UPLOAD_MAX_MB` | `300` | Per-submission archive size cap |
+| `SING_UPLOAD_DAILY_LIMIT` | `5` | Submissions per client IP per day (`0` disables the limit) |
+| `SING_VOICE_REQUESTS_FILE` | `~/.octop/sing-voice-requests.json` | Submission records |
+| `SING_REVIEW_BASE_URL` | — | OpenAI-compatible base URL for LLM review (disabled when empty) |
+| `SING_REVIEW_API_KEY` | — | Key for the review model |
+| `SING_REVIEW_MODEL` | `deepseek-chat` | Review model name |
+
 ## Configure the Octop plugin
 
 Use the acting user's own FlowBee key (no shared-key fallback):
