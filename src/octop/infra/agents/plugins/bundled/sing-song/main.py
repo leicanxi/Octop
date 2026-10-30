@@ -1,14 +1,20 @@
-"""Thin singing tools over the shared ``octop.infra.music`` pipeline.
+"""Singing tools for chat agents — an HTTP client for a ``sing-gateway`` instance.
 
-``direct`` mode talks to Replicate from the plugin process. ``flowbee`` mode
-calls an OpenAI-compatible ``sing-song`` model (new-api/FlowBee) with the acting
-user's own key, so billing stays on the user's account. User-facing phrasing
+Two routing modes:
+
+- ``flowbee`` — an OpenAI-compatible ``sing-song`` model on new-api / FlowBee,
+  billed per call on the acting user's own key (the key comes from the user's
+  personal model settings, injected by Octop for this run).
+- ``selfhosted`` — a ``sing-gateway`` you (or an operator) run yourself, talked
+  to with a base URL and the gateway token.
+
+The plugin never touches Replicate, the music sources, the voice whitelist or
+the public voice plaza: the gateway owns all of that. User-facing phrasing
 belongs to the agent persona; this module only returns data and audio blocks.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from typing import Any
@@ -18,21 +24,15 @@ from langgraph.config import get_config
 from octop_harness.plugins import PluginContext
 from octop_harness.plugins.tools import get_tool_config
 
-from octop.infra.music import (
-    DEFAULT_MODEL,
-    DEFAULT_REPLICATE_BASE,
-    DEFAULT_VOICE_URL,
-    PITCH_MODES,
-    SingConfig,
-    plaza_url,
-    render_song,
-    resolve_voice,
-    search_songs,
-)
-
 logger = logging.getLogger("octop.plugins.sing_song")
 
-_BILLING_MODES = {"direct", "flowbee"}
+_SING_MODEL = "sing-song"
+_SEARCH_MODEL = "sing-search"
+_MODES = {"flowbee", "selfhosted"}
+_PITCH_MODES = ("no-change", "male-to-female", "female-to-male")
+# A cold prediction can take several minutes; keep the client wait above it.
+_REQUEST_TIMEOUT = 900.0
+_DEFAULT_PLAZA_URL = "https://voice-models.flowbee.top"
 
 
 def _cfg(tool_name: str) -> dict[str, Any]:
@@ -52,17 +52,14 @@ def _as_int(value: Any, default: int, *, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, parsed))
 
 
-def _as_float(value: Any, default: float, *, minimum: float, maximum: float) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        parsed = default
-    return max(minimum, min(maximum, parsed))
-
-
 def _pitch_mode(value: Any) -> str:
     mode = str(value or "no-change").strip()
-    return mode if mode in PITCH_MODES else "no-change"
+    return mode if mode in _PITCH_MODES else "no-change"
+
+
+def _gateway_mode(cfg: dict[str, Any]) -> str:
+    mode = str(cfg.get("billing_mode") or "flowbee").strip().lower()
+    return mode if mode in _MODES else "flowbee"
 
 
 def _plugin_user_credential() -> dict[str, str] | None:
@@ -83,95 +80,103 @@ def _plugin_user_credential() -> dict[str, str] | None:
     }
 
 
-def _sing_config(cfg: dict[str, Any], *, voice_model_url: str | None = None) -> SingConfig:
-    return SingConfig(
-        voice_model_url=voice_model_url or str(cfg.get("voice_model_url") or DEFAULT_VOICE_URL),
-        model=str(cfg.get("model") or DEFAULT_MODEL),
-        model_version=str(cfg.get("model_version") or ""),
-        replicate_base_url=str(cfg.get("replicate_base_url") or DEFAULT_REPLICATE_BASE),
-        replicate_token=str(cfg.get("replicate_token") or ""),
-        pitch=_as_int(cfg.get("pitch"), 2, minimum=-24, maximum=24),
-        pitch_mode=_pitch_mode(cfg.get("pitch_mode")),
-        start=_as_int(cfg.get("start"), 60, minimum=0, maximum=3600),
-        duration=_as_int(cfg.get("duration"), 25, minimum=5, maximum=60),
-        index_rate=_as_float(cfg.get("index_rate"), 0.75, minimum=0.0, maximum=1.0),
-        filter_radius=_as_int(cfg.get("filter_radius"), 3, minimum=0, maximum=7),
-        rms_mix_rate=_as_float(cfg.get("rms_mix_rate"), 0.25, minimum=0.0, maximum=1.0),
-        protect=_as_float(cfg.get("protect"), 0.33, minimum=0.0, maximum=0.5),
-        prediction_timeout=_as_float(
-            cfg.get("prediction_timeout"), 600.0, minimum=30.0, maximum=1800.0
-        ),
-        cache_ttl_hours=_as_float(cfg.get("cache_ttl_hours"), 168.0, minimum=0.0, maximum=8760.0),
-        cache_max_entries=_as_int(cfg.get("cache_max_entries"), 50, minimum=0, maximum=500),
-    )
+def _connection(cfg: dict[str, Any]) -> tuple[str, str]:
+    """Resolve ``(base_url, token)`` for the configured routing mode."""
+    mode = _gateway_mode(cfg)
+    if mode == "selfhosted":
+        base_url = str(cfg.get("gateway_base_url") or "").strip()
+        token = str(cfg.get("gateway_token") or "").strip()
+        if not base_url:
+            raise RuntimeError("未配置自托管网关地址")
+        if not token:
+            raise RuntimeError("未配置网关令牌")
+    else:
+        credential = _plugin_user_credential()
+        if credential is None:
+            raise RuntimeError("请先在个人设置里配置 FlowBee API Key")
+        base_url = str(cfg.get("flowbee_base_url") or credential["base_url"] or "").strip()
+        token = credential["api_key"]
+        if not base_url:
+            raise RuntimeError("未配置 FlowBee API 地址")
+    return base_url.rstrip("/"), token
 
 
-async def _flowbee_render(
-    *,
-    url: str,
-    song: str,
-    voice: str,
-    cfg: dict[str, Any],
-    start: int,
-    duration: int,
-    pitch: int,
-    pitch_mode: str,
-) -> dict[str, Any]:
-    credential = _plugin_user_credential()
-    if credential is None:
-        raise RuntimeError("请先在个人设置里配置 FlowBee API Key")
-    base_url = str(cfg.get("flowbee_base_url") or credential["base_url"] or "").rstrip("/")
-    if not base_url:
-        raise RuntimeError("未配置 FlowBee API 地址")
-    endpoint = (
-        base_url if base_url.endswith("/chat/completions") else f"{base_url}/chat/completions"
-    )
-    model = str(cfg.get("flowbee_model") or "sing-song").strip()
-    payload = {
-        "url": url,
-        "song": song,
-        "voice": voice,
-        "start": start,
-        "duration": duration,
-        "pitch": pitch,
-        "pitch_mode": pitch_mode,
-    }
+def _describe_error(exc: BaseException) -> str:
+    """Readable failure text; httpx timeouts stringify to an empty string."""
+    text = str(exc).strip()
+    if text:
+        return text
+    if "Timeout" in type(exc).__name__:
+        return f"网关在 {int(_REQUEST_TIMEOUT)} 秒内没有返回结果，请稍后重试"
+    return f"网关请求中断（{type(exc).__name__}），请稍后重试"
+
+
+def _error_detail(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text[:300]
+    if isinstance(payload, dict):
+        detail = payload.get("detail") or payload.get("error")
+        if isinstance(detail, dict):
+            detail = detail.get("message")
+        if detail:
+            return str(detail)[:300]
+    return response.text[:300]
+
+
+def _plaza_url(cfg: dict[str, Any]) -> str:
+    return str(cfg.get("plaza_url") or _DEFAULT_PLAZA_URL).strip().rstrip("/")
+
+
+async def _post(base_url: str, token: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """POST a JSON body to the gateway and return the parsed JSON object."""
+    endpoint = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+    async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+        response = await client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+    if response.status_code >= 400:
+        raise RuntimeError(f"网关请求失败：HTTP {response.status_code} {_error_detail(response)}")
+    try:
+        body = response.json()
+    except ValueError as exc:
+        raise RuntimeError("网关返回内容不是 JSON") from exc
+    if not isinstance(body, dict):
+        raise RuntimeError("网关返回内容格式不正确")
+    return body
+
+
+async def _chat(base_url: str, token: str, model: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Call the OpenAI-compatible chat endpoint and unwrap the JSON content."""
     request = {
         "model": model,
         "stream": False,
         "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
     }
-    async with httpx.AsyncClient(timeout=360.0) as client:
-        response = await client.post(
-            endpoint,
-            headers={"Authorization": f"Bearer {credential['api_key']}"},
-            json=request,
-        )
-    if response.status_code >= 400:
-        raise RuntimeError(f"FlowBee 请求失败: HTTP {response.status_code} {response.text[:300]}")
+    body = await _post(base_url, token, "chat/completions", request)
     try:
-        content = response.json()["choices"][0]["message"]["content"]
+        content = body["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError("FlowBee 返回格式不正确") from exc
+        raise RuntimeError("网关返回格式不正确") from exc
     if isinstance(content, str):
         try:
             block = json.loads(content)
         except ValueError as exc:
-            raise RuntimeError("FlowBee 返回内容不是 JSON") from exc
+            raise RuntimeError("网关返回内容不是 JSON") from exc
     elif isinstance(content, dict):
         block = content
     else:
-        raise RuntimeError("FlowBee 返回内容格式不正确")
+        raise RuntimeError("网关返回内容格式不正确")
     if not isinstance(block, dict):
-        raise RuntimeError("FlowBee 返回内容格式不正确")
-    source = block.get("source")
-    if block.get("type") != "audio" or not isinstance(source, dict) or not source.get("url"):
-        raise RuntimeError(str(block.get("error") or "FlowBee 没有返回音频"))
+        raise RuntimeError("网关返回内容格式不正确")
     return block
 
 
 async def search_song(query: str, limit: int | None = None) -> str:
-    """Search Bilibili for a song.
+    """Search the music source for a song.
 
     Returns candidates with title, artist, duration and URL. Ask the user to
     confirm or choose one when the match is ambiguous.
@@ -182,10 +187,16 @@ async def search_song(query: str, limit: int | None = None) -> str:
     cfg = _cfg("search_song")
     limit = _as_int(limit if limit is not None else cfg.get("limit"), 3, minimum=1, maximum=5)
     try:
-        candidates = await asyncio.to_thread(search_songs, query, limit)
+        base_url, token = _connection(cfg)
+        if _gateway_mode(cfg) == "selfhosted":
+            body = await _post(base_url, token, "songs/search", {"query": query, "limit": limit})
+            candidates = body.get("data") or []
+        else:
+            block = await _chat(base_url, token, _SEARCH_MODEL, {"query": query, "limit": limit})
+            candidates = block.get("data") or []
         return json.dumps(
             {
-                "candidates": [candidate.as_dict() for candidate in candidates],
+                "candidates": candidates,
                 "next": (
                     "If the top result clearly matches the request, call sing_song(url=...). "
                     "If it is ambiguous, ask the user to confirm the title/artist first."
@@ -195,7 +206,7 @@ async def search_song(query: str, limit: int | None = None) -> str:
         )
     except Exception as exc:
         logger.exception("search_song failed")
-        return json.dumps({"error": str(exc), "candidates": []}, ensure_ascii=False)
+        return json.dumps({"error": _describe_error(exc), "candidates": []}, ensure_ascii=False)
 
 
 async def sing_song(
@@ -214,84 +225,57 @@ async def sing_song(
     user asks for a different section or duration.
     """
     cfg = _cfg("sing_song")
-    if start is not None:
-        cfg["start"] = start
-    if duration is not None:
-        cfg["duration"] = duration
-    if pitch is not None:
-        cfg["pitch"] = pitch
-    if pitch_mode is not None:
-        cfg["pitch_mode"] = pitch_mode
-
-    start_value = _as_int(cfg.get("start"), 60, minimum=0, maximum=3600)
-    duration_value = _as_int(cfg.get("duration"), 25, minimum=5, maximum=60)
-    pitch_value = _as_int(cfg.get("pitch"), 2, minimum=-24, maximum=24)
-    pitch_mode_value = _pitch_mode(cfg.get("pitch_mode"))
-    billing_mode = str(cfg.get("billing_mode") or "direct").strip().lower()
-    if billing_mode not in _BILLING_MODES:
-        billing_mode = "direct"
     url = (url or "").strip()
     song = (song or "").strip()
     voice_name = (voice or str(cfg.get("default_voice") or "")).strip()
     if not url and not song:
         return json.dumps({"error": "url or song is required"}, ensure_ascii=False)
-
+    start_default = _as_int(cfg.get("start"), 60, minimum=0, maximum=3600)
+    duration_default = _as_int(cfg.get("duration"), 25, minimum=5, maximum=60)
+    payload: dict[str, Any] = {
+        "start": _as_int(
+            start if start is not None else start_default, 60, minimum=0, maximum=3600
+        ),
+        "duration": _as_int(
+            duration if duration is not None else duration_default,
+            25,
+            minimum=5,
+            maximum=60,
+        ),
+        "pitch": _as_int(
+            pitch if pitch is not None else cfg.get("pitch"), 2, minimum=-24, maximum=24
+        ),
+        "pitch_mode": _pitch_mode(pitch_mode if pitch_mode is not None else cfg.get("pitch_mode")),
+    }
+    if url:
+        payload["url"] = url
+    else:
+        payload["song"] = song
+    if voice_name:
+        payload["voice"] = voice_name
     try:
-        if billing_mode == "flowbee":
-            block = await _flowbee_render(
-                url=url,
-                song=song,
-                voice=voice_name,
-                cfg=cfg,
-                start=start_value,
-                duration=duration_value,
-                pitch=pitch_value,
-                pitch_mode=pitch_mode_value,
-            )
-            return json.dumps(block, ensure_ascii=False)
-        if not url:
-            candidates = await asyncio.to_thread(search_songs, song, 1)
-            if not candidates:
-                return json.dumps({"error": "no song found"}, ensure_ascii=False)
-            url = candidates[0].url
-        if voice_name:
-            voice_spec = resolve_voice(voice_name)
-            if voice_spec is None:
-                return json.dumps(
-                    {
-                        "error": f"unknown voice {voice_name!r}",
-                        "note": (
-                            "请到音色广场挑选音色后把音色名传给 voice："
-                            f"{plaza_url()}。自定义 RVC 音色需管理员审核，"
-                            "用户不能直接传链接。"
-                        ),
-                    },
-                    ensure_ascii=False,
-                )
-            voice_url = voice_spec.url
-        else:
-            voice_url = str(cfg.get("voice_model_url") or "").strip()
-            if not voice_url:
-                voice_spec = resolve_voice("")
-                voice_url = voice_spec.url if voice_spec is not None else DEFAULT_VOICE_URL
-        config = _sing_config(cfg, voice_model_url=voice_url)
-        result = await asyncio.to_thread(render_song, url, config)
-        return json.dumps(result.as_block(), ensure_ascii=False)
+        base_url, token = _connection(cfg)
+        block = await _chat(base_url, token, _SING_MODEL, payload)
+        source = block.get("source")
+        if block.get("type") != "audio" or not isinstance(source, dict) or not source.get("url"):
+            raise RuntimeError(str(block.get("error") or "网关没有返回音频"))
+        return json.dumps(block, ensure_ascii=False)
     except Exception as exc:
         logger.exception("sing_song failed")
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+        return json.dumps({"error": _describe_error(exc)}, ensure_ascii=False)
 
 
 def list_voices() -> str:
     """Point users to the voice plaza; voices are picked there and used by name."""
+    cfg = _cfg("list_voices")
     return json.dumps(
         {
             "guide": "请让用户到音色广场浏览挑选音色",
-            "plaza_url": plaza_url(),
+            "plaza_url": _plaza_url(cfg),
             "note": (
-                "音色目录不再通过接口返回：用户在广场挑好后，点歌时传 voice=音色名即可；"
-                "未指定音色时使用插件配置的默认音色。自定义 RVC 音色需管理员审核加入白名单，"
-                "用户不能直接传链接。"
+                "音色目录不通过接口返回：用户在广场挑好后，点歌时传 voice=音色名即可；"
+                "未指定音色时使用插件配置的默认音色。自有 RVC 音色可在广场页登录后"
+                "提交上传（自动审核），并在「我的音色」里管理；用户不能直接传链接。"
             ),
         },
         ensure_ascii=False,
@@ -303,7 +287,7 @@ def setup(ctx: PluginContext) -> None:
         "search_song",
         search_song,
         description=(
-            "Step 1 of 2 for singing: search Bilibili and return up to 3 candidates "
+            "Step 1 of 2 for singing: search a song and return up to 3 candidates "
             "(title, artist, duration, url). If the top result clearly matches the request, "
             "you may call sing_song(url=...) directly; if it is ambiguous, show the top "
             "candidate and ask the user to confirm or choose. Do not search repeatedly."
@@ -322,9 +306,16 @@ def setup(ctx: PluginContext) -> None:
         list_voices,
         description=(
             "Return the voice plaza URL and usage guidance. Voice names are browsed and "
-            "picked on the plaza; pass the chosen name to sing_song(voice=...). Custom "
-            "RVC models must be reviewed by an admin; users cannot pass raw model URLs."
+            "picked on the plaza; pass the chosen name to sing_song(voice=...). Users "
+            "cannot pass raw model URLs."
         ),
+        config_fields=[
+            {
+                "name": "plaza_url",
+                "label": "音色广场地址",
+                "help": "留空使用默认广场地址。",
+            },
+        ],
     )
     ctx.tool(
         "sing_song",
@@ -333,16 +324,18 @@ def setup(ctx: PluginContext) -> None:
             "Step 2 of 2: generate a short singing clip in the configured RVC voice. "
             "Pass the url the user confirmed, or song only when the user asked to skip "
             "confirmation. `voice` is a voice name the user picked on the voice plaza "
-            "(see list_voices for the URL); custom voices require admin review. Defaults "
-            "are tuned for a short clip (duration up to 60s); do not override "
-            "start/duration/pitch unless the user asks. Returns an audio attachment; "
-            "do not paraphrase its JSON payload."
+            "(see list_voices for the URL). Defaults are tuned for a short clip "
+            "(duration up to 60s); do not override start/duration/pitch unless the user "
+            "asks. Returns an audio attachment; do not paraphrase its JSON payload."
         ),
         config_fields=[
             {
                 "name": "billing_mode",
                 "label": "计费模式",
-                "help": "direct 直连 Replicate；flowbee 走 new-api 的 sing-song 按次计费，使用用户自己的 key。",
+                "help": (
+                    "flowbee 走 new-api 的 sing-song 按次计费（用用户自己的 key）；"
+                    "selfhosted 走自建网关。"
+                ),
             },
             {
                 "name": "flowbee_base_url",
@@ -350,24 +343,20 @@ def setup(ctx: PluginContext) -> None:
                 "help": "留空则使用用户在个人设置里配置的 Base URL。",
             },
             {
-                "name": "flowbee_model",
-                "label": "FlowBee 模型名",
-                "help": "默认 sing-song。",
+                "name": "gateway_base_url",
+                "label": "自托管网关地址",
+                "help": "selfhosted 模式使用，例如 http://127.0.0.1:9001/v1。",
+            },
+            {
+                "name": "gateway_token",
+                "label": "网关令牌",
+                "type": "password",
+                "help": "selfhosted 模式使用，即网关的 SING_GATEWAY_TOKEN。",
             },
             {
                 "name": "default_voice",
                 "label": "默认音色",
-                "help": "音色名（白名单或音色广场目录里的名字，如 keine / cirno），留空使用白名单默认项。",
-            },
-            {
-                "name": "voice_model_url",
-                "label": "音色模型 ZIP",
-                "help": "RVC 模型的公网 zip 地址（含 .pth 和可选 .index）。",
-            },
-            {
-                "name": "model",
-                "label": "Replicate 模型",
-                "help": "默认 zsxkib/realistic-voice-cloning。",
+                "help": "音色名（音色广场里的名字，如 keine / cirno），留空使用网关默认。",
             },
             {
                 "name": "pitch",
@@ -391,46 +380,6 @@ def setup(ctx: PluginContext) -> None:
                 "label": "片段长度（秒）",
                 "type": "number",
                 "help": "默认 25，范围 5~60。",
-            },
-            {
-                "name": "cache_ttl_hours",
-                "label": "缓存有效期（小时）",
-                "type": "number",
-                "help": "默认 168（7 天），0 表示不过期。",
-            },
-            {
-                "name": "cache_max_entries",
-                "label": "缓存条数上限",
-                "type": "number",
-                "help": "默认 50，按最近使用淘汰。",
-            },
-            {
-                "name": "index_rate",
-                "label": "Index Rate",
-                "type": "number",
-                "help": "默认 0.75。",
-            },
-            {
-                "name": "replicate_base_url",
-                "label": "Replicate API 地址",
-                "help": "direct 模式使用，默认 https://api.replicate.com/v1。",
-            },
-            {
-                "name": "replicate_token",
-                "label": "Replicate Token",
-                "type": "password",
-                "help": "direct 模式使用；推荐用环境变量 REPLICATE_API_TOKEN。",
-            },
-            {
-                "name": "model_version",
-                "label": "模型版本",
-                "help": "留空自动使用最新版本。",
-            },
-            {
-                "name": "prediction_timeout",
-                "label": "超时（秒）",
-                "type": "number",
-                "help": "默认 600。",
             },
         ],
     )

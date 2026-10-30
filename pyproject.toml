@@ -95,7 +95,6 @@ dev = [
 
 [project.scripts]
 octop = "octop.cli.main:cli"
-octop-sing-gateway = "octop.api.gateway.sing:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/octop"]

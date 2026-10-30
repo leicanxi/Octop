@@ -33,7 +33,7 @@ REPLICATE_API_TOKEN=r8_xxx
 | `replicate_base_url` | `https://api.replicate.com/v1` | `direct` 模式使用 |
 
 `flowbee` 模式使用**用户自己的模型 Key**，没有配置 Key 时直接报错，不回退到共享 Key。
-new-api、网关和 AstrBot 的接入说明见 [`docs/sing-gateway.md`](../../../../../../../docs/sing-gateway.md)。
+网关已独立为 **sing-gateway** 项目（https://github.com/leicanxi/sing-gateway）：new-api 接入、音色白名单/目录、上传与登录都在那边说明；本插件只是它的 HTTP 客户端。
 
 ## 音色
 

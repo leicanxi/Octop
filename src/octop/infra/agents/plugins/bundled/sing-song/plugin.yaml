@@ -1,11 +1,9 @@
 id: sing-song
 version: 0.1.0
 name: AI 唱歌
-description: 在聊天中点歌，自动搜索 B 站音频、截取片段并用 RVC 音色唱出来
+description: 在聊天中点歌：由 sing-gateway 搜索音频、截取片段并用 RVC 音色唱出来
 group: media
 kind: tool
 entry: main.py
 requires:
   - httpx>=0.27
-  - yt-dlp>=2025.1.1
-  - imageio-ffmpeg>=0.5
