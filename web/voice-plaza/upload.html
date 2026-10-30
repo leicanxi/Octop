@@ -56,19 +56,26 @@
     <section class="catalog" aria-labelledby="form-title">
       <h2 class="section-label" id="form-title">提交模型</h2>
 
-      <form class="form-card" id="upload-form" novalidate>
+      <div class="auth-card" id="auth-card" hidden>
+        <p class="auth-title">上传音色需要先登录 FlowBee 账号</p>
+        <p class="auth-text">登录后提交的音色会绑定到你的账号，方便以后在「我的音色」里管理。</p>
+        <a class="primary-button" id="login-link" href="/v1/auth/login?next=/upload.html">使用 FlowBee 账号登录</a>
+      </div>
+
+      <p class="login-banner" id="login-banner" hidden></p>
+
+      <p class="account-bar" id="account-bar" hidden>
+        <span>当前账号：<strong id="account-name"></strong></span>
+        <a href="./account.html">我的音色</a>
+        <button class="link-button" id="logout-button" type="button">退出登录</button>
+      </p>
+
+      <form class="form-card" id="upload-form" novalidate hidden>
         <div class="field">
           <label for="label">音色显示名</label>
           <input id="label" name="label" type="text" maxlength="80" required autocomplete="off"
                  placeholder="例如：我的自训练音色 / 角色名">
           <p class="field-hint">用于生成音色名，不会公开展示完整列表。</p>
-        </div>
-
-        <div class="field">
-          <label for="flowbee-user">FlowBee 用户名</label>
-          <input id="flowbee-user" name="flowbee_user" type="text" maxlength="64" required
-                 autocomplete="off" spellcheck="false" placeholder="你在 FlowBee 的账号用户名">
-          <p class="field-hint">必填，用于把提交记录绑定到账号（后续接入登录时会用到）。</p>
         </div>
 
         <div class="field">

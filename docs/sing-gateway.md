@@ -240,10 +240,43 @@ approved without a human queue:
 
 Endpoints (public, no gateway token — the plaza calls them same-origin):
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /v1/voice-requests` | multipart (`label`, `flowbee_user`, `file` \| `url`) or JSON `{label, flowbee_user, url}` |
-| `GET /v1/voice-requests/{id}` | submission status (the id is the capability) |
+Uploading requires a FlowBee login; submissions are bound to the account that
+created them and each user can manage (list/delete) their own from the plaza.
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /v1/auth/login?next=…` | public | sets a short-lived state cookie and redirects to the FlowBee SSO relay |
+| `GET /v1/auth/callback?code&state` | public | verifies the FlowBee ticket, sets the session cookie, redirects back |
+| `GET /v1/auth/me` | session | `{uid, username, name}` or 401 |
+| `POST /v1/auth/logout` | session | clears the session cookie |
+| `POST /v1/voice-requests` | session | multipart (`label`, `file` \| `url`) or JSON `{label, url}`; identity comes from the session |
+| `GET /v1/voice-requests/mine` | session | the caller's submissions |
+| `DELETE /v1/voice-requests/{id}` | session (owner) | removes the whitelist entry **and** the stored model file |
+| `GET /v1/voice-requests/{id}` | public | submission status (the id is the capability) |
+
+### Login (FlowBee SSO)
+
+The gateway never sees passwords. FlowBee (new-api) signs a 5-minute HS256
+identity ticket for its logged-in user at `/api/user/octop_sso` (shared secret
+`OCTOP_SSO_SECRET`, callback `OCTOP_SSO_CALLBACK`); the gateway verifies it with
+the same secret (`SING_SSO_SECRET`), then mints its own session JWT.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `SING_JWT_SECRET` | — | Session JWT signing secret; empty disables login **and** uploads (fail closed) |
+| `SING_JWT_TTL_HOURS` | `168` | Session lifetime |
+| `SING_SSO_SECRET` | — | Must equal FlowBee's `OCTOP_SSO_SECRET` |
+| `SING_SSO_URL` | `https://flowbee.top/sso/octop` | FlowBee SSO relay page |
+| `SING_PLAZA_BASE` | `https://voice-models.flowbee.top` | Plaza origin used for post-login redirects |
+
+Set `OCTOP_SSO_SECRET` / `OCTOP_SSO_CALLBACK=https://<plaza-host>/v1/auth/callback`
+on the new-api container too (restart required there).
+
+Security notes: the session cookie is httpOnly + Secure + SameSite=Lax and
+host-only to the plaza domain; SSO state travels in a one-time HttpOnly cookie
+(600 s) compared with `hmac.compare_digest`; state-changing requests additionally
+check the `Origin`/`Referer` host. A disabled FlowBee account keeps a valid
+session for at most `SING_JWT_TTL_HOURS` (no per-request callback to new-api).
 
 Approved voices are written into the whitelist with a random 4-hex name
 suffix (`atri-7f3k`) so a submitted voice stays known only to its submitter;

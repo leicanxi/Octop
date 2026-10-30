@@ -391,6 +391,7 @@ def build_request_record(
     source: str,
     approved: bool,
     reason: str,
+    flowbee_uid: int = 0,
 ) -> dict[str, Any]:
     return {
         "id": request_id,
@@ -398,6 +399,7 @@ def build_request_record(
         "label": label,
         "url": url,
         "flowbee_user": flowbee_user,
+        "flowbee_uid": flowbee_uid,
         "source": source,
         "status": "approved" if approved else "rejected",
         "reason": reason,
@@ -447,3 +449,40 @@ def modelscope_upload(local_path: Path, *, repo_id: str, path_in_repo: str, toke
         repo_id=repo_id,
     )
     return f"https://modelscope.cn/models/{repo_id}/resolve/master/{path_in_repo}"
+
+
+def list_requests(path: Path | None = None) -> list[dict[str, Any]]:
+    return [record for record in _load_requests(path).values() if isinstance(record, dict)]
+
+
+def mark_deleted(request_id: str, path: Path | None = None) -> dict[str, Any] | None:
+    target = path or requests_path()
+    records = _load_requests(target)
+    record = records.get(request_id)
+    if not isinstance(record, dict):
+        return None
+    record["status"] = "deleted"
+    record["deleted_at"] = int(time.time())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(json.dumps(records, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.replace(target)
+    return record
+
+
+def modelscope_delete(*, repo_id: str, token: str, path_in_repo: str) -> None:
+    try:
+        from modelscope.hub.api import HubApi
+    except ImportError as exc:  # pragma: no cover - depends on deployment
+        raise RuntimeError("modelscope 未安装，无法删除 ModelScope 文件") from exc
+    api = HubApi()
+    api.login(token)
+    api.delete_files(repo_id=repo_id, file_paths=[path_in_repo])
+
+
+def hf_delete(*, repo_id: str, token: str, path_in_repo: str) -> None:
+    try:
+        from huggingface_hub import HfApi
+    except ImportError as exc:  # pragma: no cover - depends on deployment
+        raise RuntimeError("huggingface_hub 未安装，无法删除 HF 文件") from exc
+    HfApi(token=token).delete_file(path_in_repo=path_in_repo, repo_id=repo_id)

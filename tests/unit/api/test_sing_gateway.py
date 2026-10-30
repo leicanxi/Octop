@@ -11,7 +11,8 @@ from octop.api.gateway import sing
 
 
 def _client() -> TestClient:
-    return TestClient(sing.app)
+    # https base URL so Secure cookies are sent by the test client
+    return TestClient(sing.app, base_url="https://testserver")
 
 
 def test_health() -> None:
@@ -221,9 +222,20 @@ def _submission_env(monkeypatch: MonkeyPatch, tmp_path) -> None:
     monkeypatch.setenv("SING_UPLOAD_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("SING_PUBLIC_BASE_URL", "https://plaza.example")
     monkeypatch.setenv("SING_UPLOAD_DAILY_LIMIT", "100")
+    monkeypatch.setenv("SING_JWT_SECRET", "test-jwt-secret")
+    monkeypatch.setenv("SING_SSO_SECRET", "test-sso-secret")
+    monkeypatch.setenv("SING_JWT_TTL_HOURS", "24")
+    monkeypatch.setenv("SING_PLAZA_BASE", "https://plaza.example")
     monkeypatch.delenv("SING_REVIEW_BASE_URL", raising=False)
     monkeypatch.delenv("SING_REVIEW_API_KEY", raising=False)
     sing._recent_submissions.clear()
+
+
+def _session(username: str = "alice", uid: int = 7) -> dict[str, str]:
+    from octop.api.gateway import sso
+
+    token = sso.issue_session(sso.Identity(uid=uid, username=username, name=username.title()))
+    return {"sing_session": token}
 
 
 def _model_zip_bytes() -> bytes:
@@ -242,8 +254,9 @@ def test_submit_upload_auto_approves_and_registers_voice(
     _submission_env(monkeypatch, tmp_path)
     response = _client().post(
         "/v1/voice-requests",
-        data={"label": "My Voice", "flowbee_user": "alice"},
+        data={"label": "My Voice"},
         files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+        cookies=_session(),
     )
     assert response.status_code == 200
     body = response.json()
@@ -259,6 +272,7 @@ def test_submit_upload_auto_approves_and_registers_voice(
     status = _client().get(body["status_path"])
     assert status.status_code == 200
     assert status.json()["flowbee_user"] == "alice"
+    assert status.json()["flowbee_uid"] == 7
 
 
 def test_submit_link_uses_source_url(monkeypatch: MonkeyPatch, tmp_path) -> None:
@@ -270,17 +284,15 @@ def test_submit_link_uses_source_url(monkeypatch: MonkeyPatch, tmp_path) -> None
     monkeypatch.setattr(sing, "_download_zip", fake_download)
     response = _client().post(
         "/v1/voice-requests",
-        json={
-            "label": "Linked Voice",
-            "flowbee_user": "bob",
-            "url": "https://huggingface.co/a/b/resolve/main/m.zip",
-        },
+        json={"label": "Linked Voice", "url": "https://huggingface.co/a/b/resolve/main/m.zip"},
+        cookies=_session("bob", 8),
     )
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "approved"
     voices = json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
     assert voices[body["name"]]["url"] == "https://huggingface.co/a/b/resolve/main/m.zip"
+    assert voices[body["name"]]["added_by"] == "bob"
 
 
 def test_submit_rejects_unsafe_pickle(monkeypatch: MonkeyPatch, tmp_path) -> None:
@@ -296,8 +308,9 @@ def test_submit_rejects_unsafe_pickle(monkeypatch: MonkeyPatch, tmp_path) -> Non
         archive.writestr("model.pth", inner.getvalue())
     response = _client().post(
         "/v1/voice-requests",
-        data={"label": "Evil", "flowbee_user": "eve"},
+        data={"label": "Evil"},
         files={"file": ("model.zip", buffer.getvalue(), "application/zip")},
+        cookies=_session("eve", 9),
     )
     assert response.status_code == 200
     body = response.json()
@@ -306,26 +319,22 @@ def test_submit_rejects_unsafe_pickle(monkeypatch: MonkeyPatch, tmp_path) -> Non
     assert not (tmp_path / "voices.json").exists()
 
 
-def test_submit_requires_flowbee_user(monkeypatch: MonkeyPatch, tmp_path) -> None:
+def test_submit_requires_login(monkeypatch: MonkeyPatch, tmp_path) -> None:
     _submission_env(monkeypatch, tmp_path)
     response = _client().post(
         "/v1/voice-requests",
-        data={"label": "No User"},
+        data={"label": "No Login"},
         files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
     )
-    assert response.status_code == 400
-    assert "FlowBee" in response.json()["detail"]
+    assert response.status_code == 401
 
 
 def test_submit_rejects_non_public_link(monkeypatch: MonkeyPatch, tmp_path) -> None:
     _submission_env(monkeypatch, tmp_path)
     response = _client().post(
         "/v1/voice-requests",
-        json={
-            "label": "SSRF",
-            "flowbee_user": "carol",
-            "url": "http://127.0.0.1:9001/health",
-        },
+        json={"label": "SSRF", "url": "http://127.0.0.1:9001/health"},
+        cookies=_session("carol", 10),
     )
     assert response.status_code == 400
     assert "公网" in response.json()["detail"]
@@ -359,8 +368,9 @@ def test_submit_upload_uses_huggingface_storage(monkeypatch: MonkeyPatch, tmp_pa
     monkeypatch.setattr(sing, "hf_upload", fake_upload)
     response = _client().post(
         "/v1/voice-requests",
-        data={"label": "HF Voice", "flowbee_user": "dave"},
+        data={"label": "HF Voice"},
         files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+        cookies=_session("dave", 11),
     )
     assert response.status_code == 200
     body = response.json()
@@ -382,8 +392,9 @@ def test_submit_file_requires_storage(monkeypatch: MonkeyPatch, tmp_path) -> Non
     monkeypatch.delenv("SING_HF_TOKEN", raising=False)
     response = _client().post(
         "/v1/voice-requests",
-        data={"label": "No Storage", "flowbee_user": "erin"},
+        data={"label": "No Storage"},
         files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+        cookies=_session("erin", 12),
     )
     assert response.status_code == 503
     assert "存储" in response.json()["detail"]
@@ -406,8 +417,9 @@ def test_submit_upload_uses_modelscope_storage(monkeypatch: MonkeyPatch, tmp_pat
     monkeypatch.setattr(sing, "modelscope_upload", fake_upload)
     response = _client().post(
         "/v1/voice-requests",
-        data={"label": "MS Voice", "flowbee_user": "frank"},
+        data={"label": "MS Voice"},
         files={"file": ("model.zip", _model_zip_bytes(), "application/zip")},
+        cookies=_session("frank", 13),
     )
     assert response.status_code == 200
     body = response.json()
@@ -417,3 +429,186 @@ def test_submit_upload_uses_modelscope_storage(monkeypatch: MonkeyPatch, tmp_pat
     voices = json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
     assert voices[body["name"]]["source"] == "ms"
     assert voices[body["name"]]["url"].startswith("https://modelscope.cn/")
+
+
+def test_auth_login_redirects_to_sso(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    response = _client().get("/v1/auth/login?next=/upload.html", follow_redirects=False)
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert location.startswith("https://flowbee.top/sso/octop?state=")
+    state = location.split("state=", 1)[1]
+    cookie = response.cookies.get("sing_sso")
+    assert cookie == f"{state}.upload"
+
+
+def test_auth_callback_issues_session(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    import time
+
+    import jwt as pyjwt
+
+    client = _client()
+    login = client.get("/v1/auth/login?next=/upload.html", follow_redirects=False)
+    state = login.headers["location"].split("state=", 1)[1]
+    code = pyjwt.encode(
+        {
+            "sub": "7",
+            "username": "alice",
+            "name": "Alice",
+            "exp": int(time.time()) + 300,
+        },
+        "test-sso-secret",
+        algorithm="HS256",
+    )
+    callback = client.get(f"/v1/auth/callback?code={code}&state={state}", follow_redirects=False)
+    assert callback.status_code == 302
+    assert callback.headers["location"] == "https://plaza.example/upload.html"
+
+    me = client.get("/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json() == {"uid": 7, "username": "alice", "name": "Alice"}
+
+
+def test_auth_callback_rejects_state_mismatch(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    import time
+
+    import jwt as pyjwt
+
+    client = _client()
+    client.get("/v1/auth/login?next=/upload.html", follow_redirects=False)
+    code = pyjwt.encode(
+        {"sub": "7", "username": "alice", "exp": int(time.time()) + 300},
+        "test-sso-secret",
+        algorithm="HS256",
+    )
+    callback = client.get(
+        f"/v1/auth/callback?code={code}&state=wrong-state", follow_redirects=False
+    )
+    assert callback.status_code == 302
+    assert "login=failed" in callback.headers["location"]
+
+
+def test_auth_callback_rejects_expired_code(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    import time
+
+    import jwt as pyjwt
+
+    client = _client()
+    login = client.get("/v1/auth/login?next=/upload.html", follow_redirects=False)
+    state = login.headers["location"].split("state=", 1)[1]
+    code = pyjwt.encode(
+        {"sub": "7", "username": "alice", "exp": int(time.time()) - 3600},
+        "test-sso-secret",
+        algorithm="HS256",
+    )
+    callback = client.get(f"/v1/auth/callback?code={code}&state={state}", follow_redirects=False)
+    assert callback.status_code == 302
+    assert "login=failed" in callback.headers["location"]
+
+
+def test_me_requires_login(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    assert _client().get("/v1/auth/me").status_code == 401
+
+
+def test_my_requests_filters_by_uid(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    from octop.infra.music import submissions as subs
+
+    subs.save_request(
+        subs.build_request_record(
+            request_id="vr-a",
+            name="a-aaaa",
+            label="A",
+            url="u",
+            flowbee_user="alice",
+            source="upload",
+            approved=True,
+            reason="ok",
+            flowbee_uid=7,
+        )
+    )
+    subs.save_request(
+        subs.build_request_record(
+            request_id="vr-b",
+            name="b-bbbb",
+            label="B",
+            url="u",
+            flowbee_user="bob",
+            source="upload",
+            approved=True,
+            reason="ok",
+            flowbee_uid=8,
+        )
+    )
+    response = _client().get("/v1/voice-requests/mine", cookies=_session())
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["submissions"]] == ["vr-a"]
+
+
+def test_delete_requires_owner(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    from octop.infra.music import submissions as subs
+
+    subs.save_request(
+        subs.build_request_record(
+            request_id="vr-b",
+            name="b-bbbb",
+            label="B",
+            url="u",
+            flowbee_user="bob",
+            source="upload",
+            approved=True,
+            reason="ok",
+            flowbee_uid=8,
+        )
+    )
+    response = _client().delete("/v1/voice-requests/vr-b", cookies=_session())
+    assert response.status_code == 404
+
+
+def test_delete_removes_whitelist_and_file(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    from octop.infra.music import submissions as subs
+
+    name = "mine-1a2b"
+    (tmp_path / "voices.json").write_text(
+        json.dumps({name: {"label": "Mine", "url": "u"}}), encoding="utf-8"
+    )
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    (uploads / f"{name}.zip").write_bytes(b"zip")
+    subs.save_request(
+        subs.build_request_record(
+            request_id="vr-a",
+            name=name,
+            label="Mine",
+            url="u",
+            flowbee_user="alice",
+            source="upload",
+            approved=True,
+            reason="ok",
+            flowbee_uid=7,
+        )
+    )
+    response = _client().delete("/v1/voice-requests/vr-a", cookies=_session())
+    assert response.status_code == 200
+    assert response.json()["name"] == name
+    assert name not in json.loads((tmp_path / "voices.json").read_text(encoding="utf-8"))
+    assert not (uploads / f"{name}.zip").exists()
+    record = subs.get_request("vr-a")
+    assert record is not None and record["status"] == "deleted"
+
+
+def test_origin_check_blocks_foreign_host(monkeypatch: MonkeyPatch, tmp_path) -> None:
+    _submission_env(monkeypatch, tmp_path)
+    response = _client().post(
+        "/v1/voice-requests",
+        data={"label": "X"},
+        headers={"origin": "https://evil.example"},
+        cookies=_session(),
+    )
+    assert response.status_code == 403

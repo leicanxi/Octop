@@ -154,3 +154,21 @@ def resolve_voice(name: str, path: Path | None = None) -> VoiceSpec | None:
         return spec
     voices = _read_specs(path or voices_path(), _default_voices())
     return voices.get(DEFAULT_VOICE_NAME) or next(iter(voices.values()), None)
+
+
+def remove_voice(name: str, path: Path | None = None) -> bool:
+    """Remove a whitelist entry (used when a submitter deletes their voice)."""
+    target = path or voices_path()
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(raw, dict):
+        return False
+    key = str(name).strip().lower()
+    if raw.pop(key, None) is None and raw.pop(str(name), None) is None:
+        return False
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(target)
+    return True

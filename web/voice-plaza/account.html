@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我的音色 · 音色广场</title>
+  <meta name="description" content="管理你提交到音色广场的自定义音色：查看状态、复制音色名、删除。">
+  <meta name="theme-color" content="#fbfbfa">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./account.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <div class="header-top">
+        <div class="header-title">
+          <p class="eyebrow">RVC VOICE CATALOG</p>
+          <h1>我的音色</h1>
+          <p class="subtitle">你提交到音色广场的自定义音色：审核通过后可以用音色名点歌，也可以在这里删除。</p>
+        </div>
+        <div class="header-side">
+          <a class="back-link" href="./">← 返回音色广场</a>
+          <a class="back-link" href="./upload.html">上传音色 →</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" id="main" tabindex="-1">
+    <section class="catalog" aria-labelledby="list-title">
+      <h2 class="section-label" id="list-title">提交记录</h2>
+
+      <div class="auth-card" id="auth-card" hidden>
+        <p class="auth-title">需要先登录 FlowBee 账号</p>
+        <p class="auth-text">登录后可以查看和管理你上传的音色。</p>
+        <a class="primary-button" id="login-link" href="/v1/auth/login?next=/account.html">使用 FlowBee 账号登录</a>
+      </div>
+
+      <p class="login-banner" id="login-banner" hidden></p>
+
+      <p class="account-bar" id="account-bar" hidden>
+        <span>当前账号：<strong id="account-name"></strong></span>
+        <a href="./upload.html">上传新音色</a>
+        <button class="link-button" id="logout-button" type="button">退出登录</button>
+      </p>
+
+      <p class="status-line" id="status-line" hidden>正在加载…</p>
+
+      <ul class="voice-list" id="voice-list" hidden></ul>
+
+      <div class="empty" id="empty" hidden>
+        <p class="empty-title">还没有提交过音色</p>
+        <p class="empty-text">去 <a href="./upload.html">上传音色</a> 提交你自己的 RVC 模型。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>音色模型来自社区公开分享，版权归原作者所有；如有侵权请联系删除。</p>
+    </div>
+  </footer>
+
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+</body>
+</html>

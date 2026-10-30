@@ -4,7 +4,11 @@
   const MAX_BYTES = 300 * 1024 * 1024;
   const form = document.getElementById('upload-form');
   const labelInput = document.getElementById('label');
-  const userInput = document.getElementById('flowbee-user');
+  const authCard = document.getElementById('auth-card');
+  const accountBar = document.getElementById('account-bar');
+  const accountName = document.getElementById('account-name');
+  const logoutButton = document.getElementById('logout-button');
+  const loginBanner = document.getElementById('login-banner');
   const fileField = document.getElementById('file-field');
   const urlField = document.getElementById('url-field');
   const fileInput = document.getElementById('file');
@@ -24,6 +28,7 @@
   const liveRegion = document.getElementById('live');
 
   let busy = false;
+  let account = null;
 
   function currentMode() {
     const checked = form.querySelector('input[name="mode"]:checked');
@@ -72,15 +77,9 @@
 
   function validate() {
     const label = labelInput.value.trim();
-    const user = userInput.value.trim();
     if (!label) {
       setStatus('请填写音色显示名', true);
       labelInput.focus();
-      return null;
-    }
-    if (!/^[A-Za-z0-9_.@-]{1,64}$/.test(user)) {
-      setStatus('请填写有效的 FlowBee 用户名（字母/数字/_.@-）', true);
-      userInput.focus();
       return null;
     }
     const mode = currentMode();
@@ -104,7 +103,7 @@
       return null;
     }
     setStatus('');
-    return { label, user, mode };
+    return { label, mode };
   }
 
   function submit() {
@@ -120,7 +119,6 @@
 
     const body = new FormData();
     body.append('label', data.label);
-    body.append('flowbee_user', data.user);
     if (data.mode === 'file') {
       body.append('file', fileInput.files[0]);
     } else {
@@ -142,6 +140,11 @@
       submitButton.disabled = false;
       progress.hidden = true;
       const payload = request.response;
+      if (request.status === 401) {
+        account = null;
+        showAuthGate('登录已过期，请重新登录后提交。');
+        return;
+      }
       if (request.status >= 200 && request.status < 300 && payload) {
         setStatus('');
         showResult(payload);
@@ -209,10 +212,58 @@
     }
   }
 
+  function showAuthGate(message) {
+    authCard.hidden = false;
+    form.hidden = true;
+    accountBar.hidden = true;
+    if (message) {
+      loginBanner.hidden = false;
+      loginBanner.textContent = message;
+    }
+  }
+
+  function showAccount(me) {
+    account = me;
+    authCard.hidden = true;
+    loginBanner.hidden = true;
+    form.hidden = false;
+    accountBar.hidden = false;
+    accountName.textContent = me.name || me.username;
+  }
+
+  async function checkAuth() {
+    try {
+      const response = await fetch('/v1/auth/me', { cache: 'no-store' });
+      if (response.ok) {
+        showAccount(await response.json());
+        return;
+      }
+    } catch (_) {
+      // fall through to the login gate
+    }
+    showAuthGate();
+  }
+
+  logoutButton.addEventListener('click', async () => {
+    try {
+      await fetch('/v1/auth/logout', { method: 'POST' });
+    } catch (_) {
+      // ignore; gate will show either way
+    }
+    account = null;
+    showAuthGate();
+  });
+
   refreshMode();
   const params = new URLSearchParams(window.location.search);
+  if (params.get('login') === 'failed') {
+    const reason = params.get('reason');
+    loginBanner.hidden = false;
+    loginBanner.textContent = reason ? `登录失败：${reason}` : '登录失败，请重试。';
+  }
   const requestId = params.get('id');
   if (requestId) {
     loadStatus(requestId);
   }
+  checkAuth();
 })();

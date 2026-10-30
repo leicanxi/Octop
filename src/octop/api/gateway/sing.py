@@ -28,10 +28,29 @@ from typing import Any
 
 import httpx
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile
+from starlette.responses import JSONResponse, RedirectResponse
 
+from octop.api.gateway.sso import (
+    DEFAULT_NEXT,
+    check_origin,
+    clear_session_cookie,
+    clear_sso_cookie,
+    issue_session,
+    jwt_secret,
+    new_state,
+    normalize_next,
+    plaza_base,
+    read_sso_cookie,
+    require_identity,
+    set_session_cookie,
+    set_sso_cookie,
+    sso_secret,
+    sso_url,
+    verify_sso_ticket,
+)
 from octop.infra.music import (
     DEFAULT_REPLICATE_BASE,
     ClientSongError,
@@ -47,14 +66,18 @@ from octop.infra.music.submissions import (
     build_request_record,
     generate_name,
     get_request,
+    hf_delete,
     hf_upload,
+    list_requests,
     llm_review,
+    mark_deleted,
+    modelscope_delete,
     modelscope_upload,
     new_request_id,
     review_archive,
     save_request,
-    valid_flowbee_user,
 )
+from octop.infra.music.voices import remove_voice
 
 app = FastAPI(title="Octop Sing Gateway", version="0.1.0")
 
@@ -342,19 +365,20 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
-def _rate_ok(ip: str) -> bool:
+def _rate_ok(uid: int, ip: str) -> bool:
     limit = _as_int(os.environ.get("SING_UPLOAD_DAILY_LIMIT"), 5, minimum=0, maximum=1000)
     if limit <= 0:
         return True
+    key = f"u{uid}" if uid else f"ip{ip}"
     now = time.time()
     stamps = [
-        stamp for stamp in _recent_submissions.get(ip, []) if now - stamp < _RATE_WINDOW_SECONDS
+        stamp for stamp in _recent_submissions.get(key, []) if now - stamp < _RATE_WINDOW_SECONDS
     ]
     if len(stamps) >= limit:
-        _recent_submissions[ip] = stamps
+        _recent_submissions[key] = stamps
         return False
     stamps.append(now)
-    _recent_submissions[ip] = stamps
+    _recent_submissions[key] = stamps
     return True
 
 
@@ -504,18 +528,18 @@ def _review_submission(
 
 @app.post("/v1/voice-requests")
 async def submit_voice_request(request: Request) -> dict[str, Any]:
+    identity = require_identity(request)
+    check_origin(request)
     ip = _client_ip(request)
-    if not _rate_ok(ip):
+    if not _rate_ok(identity.uid, ip):
         raise HTTPException(status_code=429, detail="提交过于频繁，请明天再试")
     content_type = (request.headers.get("content-type") or "").lower()
     label = ""
-    flowbee_user = ""
     source_url = ""
     upload: UploadFile | None = None
     if content_type.startswith("multipart/form-data"):
         form = await request.form()
         label = str(form.get("label") or "").strip()
-        flowbee_user = str(form.get("flowbee_user") or "").strip()
         source_url = str(form.get("url") or "").strip()
         candidate = form.get("file")
         if isinstance(candidate, UploadFile) and candidate.filename:
@@ -530,13 +554,10 @@ async def submit_voice_request(request: Request) -> dict[str, Any]:
         if not isinstance(body, dict):
             raise HTTPException(status_code=400, detail="请求体必须是 JSON 对象")
         label = str(body.get("label") or "").strip()
-        flowbee_user = str(body.get("flowbee_user") or "").strip()
         source_url = str(body.get("url") or "").strip()
     label = " ".join(label.split())[:80]
     if not label:
         raise HTTPException(status_code=400, detail="请填写音色显示名")
-    if not valid_flowbee_user(flowbee_user):
-        raise HTTPException(status_code=400, detail="请填写有效的 FlowBee 用户名")
     if upload is None and not source_url:
         raise HTTPException(status_code=400, detail="请上传 zip 文件或提供模型直链")
     max_bytes = _max_upload_mb() * 1024 * 1024
@@ -559,7 +580,7 @@ async def submit_voice_request(request: Request) -> dict[str, Any]:
             _review_submission,
             temp,
             label=label,
-            flowbee_user=flowbee_user,
+            flowbee_user=identity.username,
             source_url=source_url,
             upload_dir=upload_dir,
             public_base=public_base,
@@ -572,10 +593,11 @@ async def submit_voice_request(request: Request) -> dict[str, Any]:
         name=str(result["name"]),
         label=label,
         url=str(result["url"]),
-        flowbee_user=flowbee_user,
+        flowbee_user=identity.username,
         source="link" if source_url else "upload",
         approved=bool(result["approved"]),
         reason=str(result["reason"]),
+        flowbee_uid=identity.uid,
     )
     await asyncio.to_thread(save_request, record)
     return {
@@ -586,6 +608,114 @@ async def submit_voice_request(request: Request) -> dict[str, Any]:
         "reason": result["reason"],
         "status_path": f"/v1/voice-requests/{request_id}",
     }
+
+
+def _delete_storage(record: dict[str, Any]) -> None:
+    name = str(record.get("name") or "")
+    source = str(record.get("source") or "")
+    try:
+        if source == "ms" and _ms_repo() and _ms_token():
+            modelscope_delete(
+                repo_id=_ms_repo() or "",
+                token=_ms_token(),
+                path_in_repo=f"{_ms_prefix()}/{name}.zip",
+            )
+        elif source == "hf" and _hf_repo() and _hf_token():
+            hf_delete(
+                repo_id=_hf_repo() or "",
+                token=_hf_token(),
+                path_in_repo=f"{_hf_prefix()}/{name}.zip",
+            )
+        elif source == "upload":
+            upload_dir = _upload_dir()
+            if upload_dir is not None:
+                (upload_dir / f"{name}.zip").unlink(missing_ok=True)
+    except Exception as exc:  # noqa: BLE001 - best effort, record still gets deleted
+        logger.warning("voice storage delete failed for %s: %s", name, exc)
+
+
+@app.get("/v1/auth/login")
+def auth_login(next_path: str = Query(DEFAULT_NEXT, alias="next")) -> RedirectResponse:
+    if not sso_secret() or not jwt_secret():
+        raise HTTPException(status_code=503, detail="登录服务未配置")
+    state = new_state()
+    target = f"{sso_url()}?state={urllib.parse.quote(state)}"
+    response = RedirectResponse(target, status_code=302)
+    set_sso_cookie(response, state, normalize_next(next_path))
+    return response
+
+
+@app.get("/v1/auth/callback")
+def auth_callback(request: Request, code: str = "", state: str = "") -> RedirectResponse:
+    stored = read_sso_cookie(request)
+    next_path = normalize_next(stored[1] if stored else DEFAULT_NEXT)
+
+    def failure(reason: str) -> RedirectResponse:
+        response = RedirectResponse(
+            f"{plaza_base()}{next_path}?login=failed&reason={urllib.parse.quote(reason)}",
+            status_code=302,
+        )
+        clear_sso_cookie(response)
+        return response
+
+    if stored is None:
+        return failure("登录状态已过期，请重试")
+    if not hmac.compare_digest(stored[0], state or ""):
+        return failure("登录校验失败，请重试")
+    try:
+        identity = verify_sso_ticket(code)
+        token = issue_session(identity)
+    except HTTPException as exc:
+        return failure(str(exc.detail))
+    response = RedirectResponse(f"{plaza_base()}{next_path}", status_code=302)
+    clear_sso_cookie(response)
+    set_session_cookie(response, token)
+    logger.info("sso login ok: uid=%s username=%s", identity.uid, identity.username)
+    return response
+
+
+@app.get("/v1/auth/me")
+def auth_me(request: Request) -> dict[str, Any]:
+    identity = require_identity(request)
+    return {"uid": identity.uid, "username": identity.username, "name": identity.name}
+
+
+@app.post("/v1/auth/logout")
+def auth_logout(request: Request) -> JSONResponse:
+    check_origin(request)
+    response = JSONResponse({"ok": True})
+    clear_session_cookie(response)
+    return response
+
+
+@app.get("/v1/voice-requests/mine")
+def my_voice_requests(request: Request) -> dict[str, Any]:
+    identity = require_identity(request)
+    items = [
+        record
+        for record in list_requests()
+        if record.get("flowbee_uid") == identity.uid and record.get("status") != "deleted"
+    ]
+    items.sort(key=lambda item: int(item.get("created_at") or 0), reverse=True)
+    return {"submissions": items}
+
+
+@app.delete("/v1/voice-requests/{request_id}")
+def delete_voice_request(request: Request, request_id: str) -> dict[str, Any]:
+    identity = require_identity(request)
+    check_origin(request)
+    record = get_request(request_id)
+    if record is None or record.get("flowbee_uid") != identity.uid:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    if record.get("status") == "deleted":
+        return {"ok": True}
+    name = str(record.get("name") or "")
+    if name and record.get("status") == "approved":
+        if remove_voice(name):
+            logger.info("removed voice %s from whitelist", name)
+        _delete_storage(record)
+    mark_deleted(request_id)
+    return {"ok": True, "name": name}
 
 
 @app.get("/v1/voice-requests/{request_id}")
