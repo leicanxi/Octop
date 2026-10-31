@@ -27,7 +27,7 @@ REPLICATE_API_TOKEN=r8_xxx
 | `pitch` | `2` | 整体升降调（半音） |
 | `pitch_mode` | `no-change` | `no-change` / `male-to-female` / `female-to-male` |
 | `start` | `60` | 截取起点（秒） |
-| `duration` | `25` | 片段长度（秒），范围 5~60 |
+| `duration` | `25` | 片段长度（秒），范围 5~120 |
 | `cache_ttl_hours` | `168` | 缓存有效期（小时），0 表示不过期 |
 | `cache_max_entries` | `50` | 缓存条数上限，按最近使用淘汰 |
 | `replicate_base_url` | `https://api.replicate.com/v1` | `direct` 模式使用 |
@@ -67,8 +67,9 @@ REPLICATE_API_TOKEN=r8_xxx
 
 ## 交互
 
-- `search_song(query)` 返回候选，agent 应先让用户确认再调用 `sing_song`。
-- `sing_song(url=...)` 使用确认后的地址；`sing_song(song=...)` 自动取第一条，适合用户明确说“不用问，直接唱”。
+- `confirm_song(query)` 返回按匹配度排序的候选（免费，不生成音频），第 1 条是网关推荐；只在用户说唱错了、需要重新确认歌曲时调用，把选定那条的 url 交给 `sing_song`。
+- `sing_song(url=...)` 使用确认后的地址；`sing_song(song=...)` 自动取最匹配的一条，适合用户明确说“不用问，直接唱”。
+- 返回的 audio block 带 `title`/`artist`，客户端可以告诉用户唱的是哪个版本。
 - 插件不输出任何固定台词，所有措辞由 agent 人设决定。
 
 ## 说明

@@ -60,7 +60,7 @@ def test_setup_registers_expected_tools() -> None:
     module.setup(ctx)
     loaded = ctx.to_loaded()
     assert [tool.name for tool in loaded.tools] == [
-        "search_song",
+        "confirm_song",
         "list_voices",
         "sing_song",
     ]
@@ -96,7 +96,7 @@ def test_list_voices_points_to_plaza(monkeypatch: MonkeyPatch) -> None:
     assert "note" in payload
 
 
-def test_search_song_calls_selfhosted_endpoint(monkeypatch: MonkeyPatch) -> None:
+def test_confirm_song_calls_selfhosted_endpoint(monkeypatch: MonkeyPatch) -> None:
     module = _load()
     _patch_connection(module, monkeypatch)
     monkeypatch.setattr(
@@ -115,13 +115,13 @@ def test_search_song_calls_selfhosted_endpoint(monkeypatch: MonkeyPatch) -> None
     monkeypatch.setattr(module, "_post", fake_post)
     import asyncio
 
-    payload = json.loads(asyncio.run(module.search_song("起风了")))
+    payload = json.loads(asyncio.run(module.confirm_song("起风了")))
     assert payload["candidates"][0]["title"] == "起风了"
     assert seen["path"] == "songs/search"
     assert seen["payload"] == {"query": "起风了", "limit": 2}
 
 
-def test_search_song_uses_sing_search_model_in_flowbee_mode(
+def test_confirm_song_uses_sing_search_model_in_flowbee_mode(
     monkeypatch: MonkeyPatch,
 ) -> None:
     module = _load()
@@ -136,7 +136,7 @@ def test_search_song_uses_sing_search_model_in_flowbee_mode(
     monkeypatch.setattr(module, "_chat", fake_chat)
     import asyncio
 
-    payload = json.loads(asyncio.run(module.search_song("晴天")))
+    payload = json.loads(asyncio.run(module.confirm_song("晴天")))
     assert seen["model"] == "sing-search"
     assert seen["payload"] == {"query": "晴天", "limit": 3}
     assert payload["candidates"][0]["title"] == "晴天"

@@ -175,16 +175,17 @@ async def _chat(base_url: str, token: str, model: str, payload: dict[str, Any]) 
     return block
 
 
-async def search_song(query: str, limit: int | None = None) -> str:
-    """Search the music source for a song.
+async def confirm_song(query: str, limit: int | None = None) -> str:
+    """Re-confirm which song to sing.
 
-    Returns candidates with title, artist, duration and URL. Ask the user to
-    confirm or choose one when the match is ambiguous.
+    Returns the music source's candidates ranked by match quality. The first one
+    is the recommendation; use it, and only re-confirm with the user when they
+    say the sung song was wrong.
     """
     query = (query or "").strip()
     if not query:
         return json.dumps({"error": "query is required", "candidates": []}, ensure_ascii=False)
-    cfg = _cfg("search_song")
+    cfg = _cfg("confirm_song")
     limit = _as_int(limit if limit is not None else cfg.get("limit"), 3, minimum=1, maximum=5)
     try:
         base_url, token = _connection(cfg)
@@ -198,14 +199,14 @@ async def search_song(query: str, limit: int | None = None) -> str:
             {
                 "candidates": candidates,
                 "next": (
-                    "If the top result clearly matches the request, call sing_song(url=...). "
-                    "If it is ambiguous, ask the user to confirm the title/artist first."
+                    "The first entry is the gateway's recommendation — tell it to the user. "
+                    "Pass the url of whichever one the user picks to sing_song."
                 ),
             },
             ensure_ascii=False,
         )
     except Exception as exc:
-        logger.exception("search_song failed")
+        logger.exception("confirm_song failed")
         return json.dumps({"error": _describe_error(exc), "candidates": []}, ensure_ascii=False)
 
 
@@ -220,8 +221,8 @@ async def sing_song(
 ) -> str:
     """Generate a short singing clip in the configured voice.
 
-    Pass ``url`` from ``search_song`` after the user confirms, or ``song`` to
-    auto-pick the first search result. Keep the default clip length unless the
+    Pass ``url`` from ``confirm_song`` after the user picks one, or ``song`` to
+    auto-pick the best-matching result. Keep the default clip length unless the
     user asks for a different section or duration.
     """
     cfg = _cfg("sing_song")
@@ -231,7 +232,7 @@ async def sing_song(
     if not url and not song:
         return json.dumps({"error": "url or song is required"}, ensure_ascii=False)
     start_default = _as_int(cfg.get("start"), 60, minimum=0, maximum=3600)
-    duration_default = _as_int(cfg.get("duration"), 25, minimum=5, maximum=60)
+    duration_default = _as_int(cfg.get("duration"), 25, minimum=5, maximum=120)
     payload: dict[str, Any] = {
         "start": _as_int(
             start if start is not None else start_default, 60, minimum=0, maximum=3600
@@ -240,7 +241,7 @@ async def sing_song(
             duration if duration is not None else duration_default,
             25,
             minimum=5,
-            maximum=60,
+            maximum=120,
         ),
         "pitch": _as_int(
             pitch if pitch is not None else cfg.get("pitch"), 2, minimum=-24, maximum=24
@@ -284,13 +285,15 @@ def list_voices() -> str:
 
 def setup(ctx: PluginContext) -> None:
     ctx.tool(
-        "search_song",
-        search_song,
+        "confirm_song",
+        confirm_song,
         description=(
-            "Step 1 of 2 for singing: search a song and return up to 3 candidates "
-            "(title, artist, duration, url). If the top result clearly matches the request, "
-            "you may call sing_song(url=...) directly; if it is ambiguous, show the top "
-            "candidate and ask the user to confirm or choose. Do not search repeatedly."
+            "Re-confirm which song to sing: returns the gateway's candidates ranked by "
+            "match quality (free, no audio generated). The first entry is the gateway's "
+            "recommendation — use it; do not re-rank or pick a version yourself, since "
+            "title decorations (深情版 / 女声版 / 原唱) are easy to misjudge. Call this only "
+            "when the user says the sung song was wrong and it has to be re-confirmed; for "
+            "a normal request call sing_song directly, and re-confirm at most once."
         ),
         config_fields=[
             {
@@ -321,11 +324,11 @@ def setup(ctx: PluginContext) -> None:
         "sing_song",
         sing_song,
         description=(
-            "Step 2 of 2: generate a short singing clip in the configured RVC voice. "
-            "Pass the url the user confirmed, or song only when the user asked to skip "
-            "confirmation. `voice` is a voice name the user picked on the voice plaza "
-            "(see list_voices for the URL). Defaults are tuned for a short clip "
-            "(duration up to 60s); do not override start/duration/pitch unless the user "
+            "Generate a short singing clip in the configured RVC voice. "
+            "Pass the url the user picked via confirm_song, or song only when the user "
+            "asked to skip confirmation. `voice` is a voice name the user picked on the "
+            "voice plaza (see list_voices for the URL). Defaults are tuned for a short clip "
+            "(duration up to 120s); do not override start/duration/pitch unless the user "
             "asks. Returns an audio attachment; do not paraphrase its JSON payload."
         ),
         config_fields=[
@@ -379,7 +382,7 @@ def setup(ctx: PluginContext) -> None:
                 "name": "duration",
                 "label": "片段长度（秒）",
                 "type": "number",
-                "help": "默认 25，范围 5~60。",
+                "help": "默认 25，范围 5~120。",
             },
         ],
     )
