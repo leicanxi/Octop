@@ -26,6 +26,8 @@ REPLICATE_API_TOKEN=r8_xxx
 | `model` | `zsxkib/realistic-voice-cloning` | AICoverGen 封装，内部完成主唱/伴唱分离 |
 | `pitch` | `2` | 整体升降调（半音） |
 | `pitch_mode` | `no-change` | `no-change` / `male-to-female` / `female-to-male` |
+| `instrumental_volume` | 空 | 伴奏增益（dB），-60 静音 ~ 0 原始音量；留空用网关默认（静音） |
+| `backup_vocals_volume` | 空 | 和声增益（dB），同一刻度；和声也会被转成所选音色 |
 | `start` | `60` | 截取起点（秒） |
 | `duration` | `25` | 片段长度（秒），范围 5~120 |
 | `cache_ttl_hours` | `168` | 缓存有效期（小时），0 表示不过期 |
@@ -69,6 +71,7 @@ REPLICATE_API_TOKEN=r8_xxx
 
 - `confirm_song(query)` 返回按匹配度排序的候选（免费，不生成音频），第 1 条是网关推荐；只在用户说唱错了、需要重新确认歌曲时调用，把选定那条的 url 交给 `sing_song`。
 - `sing_song(url=...)` 使用确认后的地址；`sing_song(song=...)` 自动取最匹配的一条，适合用户明确说“不用问，直接唱”。
+- 用户要伴奏/和声时由 agent 传 `instrumental_volume` / `backup_vocals_volume`（0 带原始音量，负数更轻，不传则纯人声）。
 - 返回的 audio block 带 `title`/`artist`，客户端可以告诉用户唱的是哪个版本。
 - 插件不输出任何固定台词，所有措辞由 agent 人设决定。
 
@@ -76,8 +79,8 @@ REPLICATE_API_TOKEN=r8_xxx
 
 - 输入来源是 B 站音频，下载与翻唱涉及版权，请仅在授权范围内使用。
 - 热启动约 70 秒，冷启动 2~4 分钟；工具会同步等待。
-- 生成结果会按"歌曲 URL + 片段起点/长度 + 音高 + 音色 + 模型版本"缓存在
-  `~/.octop/cache/sing-song/`。同一请求再次命中时只需重新上传缓存文件，通常 1~2 秒。
-  缓存按需生成，不会预先生成热门歌曲。
+- 生成结果会按"歌曲 URL + 片段起点/长度 + 音高 + 音色 + 模型版本 + 伴奏/和声
+  增益"缓存在 `~/.octop/cache/sing-song/`。同一请求再次命中时只需重新上传缓存文件，
+  通常 1~2 秒。缓存按需生成，不会预先生成热门歌曲。
 - 返回的音频是 Replicate 的临时 URL，适合立即发送；本地缓存用于下次快速重放。
 - 计费、限流和 FlowBee 计费接入尚未实现。

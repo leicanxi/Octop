@@ -30,6 +30,10 @@ _SING_MODEL = "sing-song"
 _SEARCH_MODEL = "sing-search"
 _MODES = {"flowbee", "selfhosted"}
 _PITCH_MODES = ("no-change", "male-to-female", "female-to-male")
+# Mixing gains in dB: 0 keeps a stem (accompaniment / backing harmonies),
+# -60 mutes it. The gateway applies the same clamp.
+_VOLUME_MIN = -60
+_VOLUME_MAX = 0
 # A cold prediction can take several minutes; keep the client wait above it.
 _REQUEST_TIMEOUT = 900.0
 _DEFAULT_PLAZA_URL = "https://voice-models.flowbee.top"
@@ -55,6 +59,16 @@ def _as_int(value: Any, default: int, *, minimum: int, maximum: int) -> int:
 def _pitch_mode(value: Any) -> str:
     mode = str(value or "no-change").strip()
     return mode if mode in _PITCH_MODES else "no-change"
+
+
+def _mixing_volume(value: Any, configured: Any) -> int | None:
+    """Resolve an optional dB gain; ``None`` keeps the gateway default (muted)."""
+    raw = value if value is not None else configured
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return max(_VOLUME_MIN, min(_VOLUME_MAX, parsed))
 
 
 def _gateway_mode(cfg: dict[str, Any]) -> str:
@@ -218,12 +232,16 @@ async def sing_song(
     duration: int | None = None,
     pitch: int | None = None,
     pitch_mode: str | None = None,
+    instrumental_volume: int | None = None,
+    backup_vocals_volume: int | None = None,
 ) -> str:
     """Generate a short singing clip in the configured voice.
 
     Pass ``url`` from ``confirm_song`` after the user picks one, or ``song`` to
     auto-pick the best-matching result. Keep the default clip length unless the
-    user asks for a different section or duration.
+    user asks for a different section or duration. Set ``instrumental_volume`` or
+    ``backup_vocals_volume`` only when the user asks for the accompaniment or
+    backing harmonies.
     """
     cfg = _cfg("sing_song")
     url = (url or "").strip()
@@ -248,6 +266,12 @@ async def sing_song(
         ),
         "pitch_mode": _pitch_mode(pitch_mode if pitch_mode is not None else cfg.get("pitch_mode")),
     }
+    instrumental = _mixing_volume(instrumental_volume, cfg.get("instrumental_volume"))
+    if instrumental is not None:
+        payload["instrumental_volume"] = instrumental
+    backup = _mixing_volume(backup_vocals_volume, cfg.get("backup_vocals_volume"))
+    if backup is not None:
+        payload["backup_vocals_volume"] = backup
     if url:
         payload["url"] = url
     else:
@@ -329,7 +353,11 @@ def setup(ctx: PluginContext) -> None:
             "asked to skip confirmation. `voice` is a voice name the user picked on the "
             "voice plaza (see list_voices for the URL). Defaults are tuned for a short clip "
             "(duration up to 120s); do not override start/duration/pitch unless the user "
-            "asks. Returns an audio attachment; do not paraphrase its JSON payload."
+            "asks. Pass instrumental_volume=0 to keep the original accompaniment (伴奏) "
+            "and backup_vocals_volume=0 for backing harmonies (和声) when the user asks "
+            "for them — negative dB (down to -60) makes a stem quieter; omit both for "
+            "the default vocals-only mix. Returns an audio attachment; do not paraphrase "
+            "its JSON payload."
         ),
         config_fields=[
             {
@@ -371,6 +399,18 @@ def setup(ctx: PluginContext) -> None:
                 "name": "pitch_mode",
                 "label": "人声音域",
                 "help": "no-change / male-to-female / female-to-male，默认 no-change。",
+            },
+            {
+                "name": "instrumental_volume",
+                "label": "伴奏音量（dB）",
+                "type": "number",
+                "help": "-60~0，0 带原始音量伴奏，-60 静音；留空用网关默认（静音）。用户点歌时说「带伴奏」会按次传 0。",
+            },
+            {
+                "name": "backup_vocals_volume",
+                "label": "和声音量（dB）",
+                "type": "number",
+                "help": "-60~0，0 带原始音量和声（和声也会被转成所选音色）；留空用网关默认（静音）。",
             },
             {
                 "name": "start",

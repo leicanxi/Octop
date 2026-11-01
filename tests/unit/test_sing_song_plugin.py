@@ -184,6 +184,55 @@ def test_sing_song_reports_gateway_errors(monkeypatch: MonkeyPatch) -> None:
     assert "VIP" in payload["error"]
 
 
+def test_sing_song_forwards_mixing_volumes(monkeypatch: MonkeyPatch) -> None:
+    module = _load()
+    _patch_connection(module, monkeypatch)
+    monkeypatch.setattr(module, "_cfg", lambda _name: {})
+    seen: dict[str, Any] = {}
+
+    async def fake_chat(base_url: str, token: str, model: str, payload: dict[str, Any]):
+        seen["payload"] = payload
+        return {"type": "audio", "source": {"type": "url", "url": "https://a/cover.mp3"}}
+
+    monkeypatch.setattr(module, "_chat", fake_chat)
+    import asyncio
+
+    json.loads(
+        asyncio.run(module.sing_song(song="晴天", instrumental_volume=0, backup_vocals_volume=-6))
+    )
+    assert seen["payload"]["instrumental_volume"] == 0
+    assert seen["payload"]["backup_vocals_volume"] == -6
+
+
+def test_sing_song_omits_mixing_volumes_unless_requested(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    module = _load()
+    _patch_connection(module, monkeypatch)
+    seen: dict[str, Any] = {}
+
+    async def fake_chat(base_url: str, token: str, model: str, payload: dict[str, Any]):
+        seen["payload"] = payload
+        return {"type": "audio", "source": {"type": "url", "url": "https://a/cover.mp3"}}
+
+    monkeypatch.setattr(module, "_chat", fake_chat)
+    import asyncio
+
+    # Neither the caller nor the tool config asked for stems: the gateway
+    # default (muted) must stay in force, so no volume keys are sent.
+    monkeypatch.setattr(module, "_cfg", lambda _name: {})
+    json.loads(asyncio.run(module.sing_song(song="晴天")))
+    assert "instrumental_volume" not in seen["payload"]
+    assert "backup_vocals_volume" not in seen["payload"]
+
+    # A configured default applies on its own and out-of-range values clamp.
+    monkeypatch.setattr(module, "_cfg", lambda _name: {"instrumental_volume": 0})
+    json.loads(asyncio.run(module.sing_song(song="晴天", instrumental_volume=-99)))
+    assert seen["payload"]["instrumental_volume"] == -60
+    json.loads(asyncio.run(module.sing_song(song="晴天")))
+    assert seen["payload"]["instrumental_volume"] == 0
+
+
 def test_sing_song_requires_url_or_song(monkeypatch: MonkeyPatch) -> None:
     module = _load()
     monkeypatch.setattr(module, "_cfg", lambda _name: {})
