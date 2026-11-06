@@ -29,7 +29,7 @@ REPLICATE_API_TOKEN=r8_xxx
 | `instrumental_volume` | 空 | 伴奏增益（dB），-60 静音 ~ 0 原始音量；留空用网关默认（静音） |
 | `backup_vocals_volume` | 空 | 和声增益（dB），同一刻度；和声也会被转成所选音色 |
 | `start` | `60` | 截取起点（秒） |
-| `duration` | `25` | 片段长度（秒），范围 5~120 |
+| `duration` | `25` | 片段长度（秒），范围 5~600 |
 | `cache_ttl_hours` | `168` | 缓存有效期（小时），0 表示不过期 |
 | `cache_max_entries` | `50` | 缓存条数上限，按最近使用淘汰 |
 | `replicate_base_url` | `https://api.replicate.com/v1` | `direct` 模式使用 |

@@ -250,7 +250,7 @@ async def sing_song(
     if not url and not song:
         return json.dumps({"error": "url or song is required"}, ensure_ascii=False)
     start_default = _as_int(cfg.get("start"), 60, minimum=0, maximum=3600)
-    duration_default = _as_int(cfg.get("duration"), 25, minimum=5, maximum=120)
+    duration_default = _as_int(cfg.get("duration"), 25, minimum=5, maximum=600)
     payload: dict[str, Any] = {
         "start": _as_int(
             start if start is not None else start_default, 60, minimum=0, maximum=3600
@@ -259,7 +259,7 @@ async def sing_song(
             duration if duration is not None else duration_default,
             25,
             minimum=5,
-            maximum=120,
+            maximum=600,
         ),
         "pitch": _as_int(
             pitch if pitch is not None else cfg.get("pitch"), 2, minimum=-24, maximum=24
@@ -352,7 +352,7 @@ def setup(ctx: PluginContext) -> None:
             "Pass the url the user picked via confirm_song, or song only when the user "
             "asked to skip confirmation. `voice` is a voice name the user picked on the "
             "voice plaza (see list_voices for the URL). Defaults are tuned for a short clip "
-            "(duration up to 120s); do not override start/duration/pitch unless the user "
+            "(duration up to 600s); do not override start/duration/pitch unless the user "
             "asks. Pass instrumental_volume=0 to keep the original accompaniment (伴奏) "
             "and backup_vocals_volume=0 for backing harmonies (和声) when the user asks "
             "for them — negative dB (down to -60) makes a stem quieter; omit both for "
@@ -422,7 +422,7 @@ def setup(ctx: PluginContext) -> None:
                 "name": "duration",
                 "label": "片段长度（秒）",
                 "type": "number",
-                "help": "默认 25，范围 5~120。",
+                "help": "默认 25，范围 5~600。",
             },
         ],
     )
