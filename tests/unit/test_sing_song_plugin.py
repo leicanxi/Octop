@@ -232,6 +232,12 @@ def test_sing_song_omits_mixing_volumes_unless_requested(
     json.loads(asyncio.run(module.sing_song(song="晴天")))
     assert seen["payload"]["instrumental_volume"] == 0
 
+    # Positive gains are allowed up to +12 and clamped beyond it.
+    json.loads(asyncio.run(module.sing_song(song="晴天", instrumental_volume=6)))
+    assert seen["payload"]["instrumental_volume"] == 6
+    json.loads(asyncio.run(module.sing_song(song="晴天", instrumental_volume=99)))
+    assert seen["payload"]["instrumental_volume"] == 12
+
 
 def test_sing_song_requires_url_or_song(monkeypatch: MonkeyPatch) -> None:
     module = _load()

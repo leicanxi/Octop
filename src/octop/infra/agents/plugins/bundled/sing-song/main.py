@@ -31,9 +31,10 @@ _SEARCH_MODEL = "sing-search"
 _MODES = {"flowbee", "selfhosted"}
 _PITCH_MODES = ("no-change", "male-to-female", "female-to-male")
 # Mixing gains in dB: 0 keeps a stem (accompaniment / backing harmonies),
-# -60 mutes it. The gateway applies the same clamp.
+# -60 mutes it, +12 is the loudest we expose (measured clean through the
+# model's output stage). The gateway applies the same clamp.
 _VOLUME_MIN = -60
-_VOLUME_MAX = 0
+_VOLUME_MAX = 12
 # A cold prediction can take several minutes; keep the client wait above it.
 _REQUEST_TIMEOUT = 900.0
 _DEFAULT_PLAZA_URL = "https://voice-models.flowbee.top"
@@ -355,9 +356,9 @@ def setup(ctx: PluginContext) -> None:
             "(duration up to 600s); do not override start/duration/pitch unless the user "
             "asks. Pass instrumental_volume=0 to keep the original accompaniment (伴奏) "
             "and backup_vocals_volume=0 for backing harmonies (和声) when the user asks "
-            "for them — negative dB (down to -60) makes a stem quieter; omit both for "
-            "the default vocals-only mix. Returns an audio attachment; do not paraphrase "
-            "its JSON payload."
+            "for them — negative dB (down to -60) makes a stem quieter, positive dB "
+            "(up to +12) makes it louder; omit both for the default vocals-only mix. "
+            "Returns an audio attachment; do not paraphrase its JSON payload."
         ),
         config_fields=[
             {
@@ -404,13 +405,13 @@ def setup(ctx: PluginContext) -> None:
                 "name": "instrumental_volume",
                 "label": "伴奏音量（dB）",
                 "type": "number",
-                "help": "-60~0，0 带原始音量伴奏，-60 静音；留空用网关默认（静音）。用户点歌时说「带伴奏」会按次传 0。",
+                "help": "-60~+12：0 带原始音量伴奏，负数更轻、正数更响（最大 +12），-60 静音；留空用网关默认（静音）。用户点歌时说「带伴奏」会按次传 0。",
             },
             {
                 "name": "backup_vocals_volume",
                 "label": "和声音量（dB）",
                 "type": "number",
-                "help": "-60~0，0 带原始音量和声（和声也会被转成所选音色）；留空用网关默认（静音）。",
+                "help": "-60~+12：0 带原始音量和声（和声也会被转成所选音色），负数更轻、正数更响；留空用网关默认（静音）。",
             },
             {
                 "name": "start",
